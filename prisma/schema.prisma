@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================
+// ENUMS
+// ========================
+
+enum Role {
+  ADMINISTRADOR
+  MEDICO
+  ENFERMERA
+  PACIENTE
+}
+
+// ========================
+// MODELS
+// ========================
+
+model User {
+  id                   Int       @id @default(autoincrement())
+  email                String    @unique
+  fullname             String
+  role                 Role      @default(PACIENTE)
+  currentPassword      String
+  status               String    @default("PENDING") // PENDING, ACTIVE, INACTIVE
+  identificationNumber String?   @unique
+  phone                String?
+  dateOfBirth          DateTime?
+  age                  Int?
+  licenseNumber        String?
+  emergencyContact     String?
+  bloodType            String?
+  allergies            String?
+  chronicDiseases      String?
+  verificationCode     String?
+  verificationExpires  DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relaciones opcionales (solo para staff)
+  departmentId Int? // Todos los staff (MEDICO, ENFERMERA, ADMINISTRADOR)
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  specializationId Int? // Solo para MEDICO
+  specialization   Specialization? @relation(fields: [specializationId], references: [id], onDelete: SetNull)
+
+  // Relaciones
+  auditLogs               AuditLog[]
+  appointmentsAsPatient   Appointment[]   @relation("UserAppointments") // Relación con citas como paciente
+  appointmentsAsDoctor    Appointment[]   @relation("DoctorAppointments") // Relación con citas como médico
+  medicalRecordsAsPatient MedicalRecord[] @relation("PatientMedicalRecords") // Relación con historias clínicas como paciente
+  medicalRecordsAsDoctor  MedicalRecord[] @relation("DoctorMedicalRecords") // Relación con historias clínicas como médico
+
+  diagnosticsAsPatient Diagnostic[] @relation("PatientDiagnostics")
+  diagnosticsAsDoctor  Diagnostic[] @relation("DoctorDiagnostics")
+}
+
+// AGREGAR ESTAS DOS NUEVAS RELACIONES para Diagnostic
+model Department {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique // Ej: "URGENCIAS", "MEDICINA_INTERNA", "ADMINISTRACION"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  specializations Specialization[]
+  medicalRecords  MedicalRecord[] // Relación con historias clínicas
+}
+
+model Specialization {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique // Ej: "CARDIOLOGIA", "PEDIATRIA"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        User[] // Solo médicos deberían tener esto (lógica en app)
+  departmentId Int? // Nuevo campo opcional
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+}
+
+model TokenBlacklist {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int? // null en eventos como "USER_REGISTER"
+  action    String // Ej: "USER_LOGIN", "USER_REGISTER", "PROFILE_UPDATE"
+  details   String? // JSON serializado con metadata adicional
+  timestamp DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Appointment {
+  id              Int            @id @default(autoincrement())
+  userId          Int // Relación con el paciente
+  user            User           @relation("UserAppointments", fields: [userId], references: [id], onDelete: Cascade)
+  doctorId        Int? // Relación con el médico
+  doctor          User?          @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: SetNull)
+  medicalRecordId Int? // Relación con la historia clínica (opcional)
+  medicalRecord   MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
+  date            DateTime // Fecha y hora de la cita
+  reason          String // Motivo de la cita
+  status          String         @default("PENDING") // Estado de la cita: PENDING, COMPLETED, CANCELLED
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model MedicalRecord {
+  id              Int         @id @default(autoincrement())
+  userId          Int // Relación con el paciente
+  user            User        @relation("PatientMedicalRecords", fields: [userId], references: [id], onDelete: Cascade)
+  doctorId        Int? // Relación con el médico responsable
+  doctor          User?       @relation("DoctorMedicalRecords", fields: [doctorId], references: [id], onDelete: SetNull)
+  departmentId    Int? // Relación con el departamento o especialidad
+  department      Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  description     String // Motivo de consulta
+  diagnosis       String // Diagnóstico
+  treatment       String // Tratamiento
+  allergies       String? // Alergias conocidas
+  chronicDiseases String? // Enfermedades crónicas
+  vitalSigns      Json? // Signos vitales (JSON para flexibilidad)
+  labResults      Json? // Resultados de laboratorio (JSON para flexibilidad)
+  procedures      Json? // Procedimientos realizados (JSON para flexibilidad)
+  medicalOrders   Json? // Órdenes médicas (JSON para flexibilidad)
+  prescriptions   Json? // Prescripciones médicas (JSON para flexibilidad)
+  followUpNotes   String? // Notas de seguimiento
+  patientStatus   String? // Estado del paciente
+  adminNotes      String? // Notas administrativas
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relación con las citas
+  appointments Appointment[]
+}
+
+// ========================
+// NUEVOS MODELOS PARA DIAGNÓSTICOS (VERSIÓN CORREGIDA)
+// ========================
+
+model Diagnostic {
+  id              Int       @id @default(autoincrement())
+  patientId       Int
+  patient         User      @relation("PatientDiagnostics", fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId        Int
+  doctor          User      @relation("DoctorDiagnostics", fields: [doctorId], references: [id], onDelete: Cascade)
+  title           String
+  description     String
+  symptoms        String
+  diagnosis       String
+  treatment       String
+  observations    String?
+  nextAppointment DateTime?
+  state           String    @default("ACTIVE")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  documents DiagnosticDocument[]
+}
+
+model DiagnosticDocument {
+  id             Int        @id @default(autoincrement())
+  diagnosticId   Int
+  diagnostic     Diagnostic @relation(fields: [diagnosticId], references: [id], onDelete: Cascade)
+  filename       String
+  storedFilename String
+  filePath       String
+  fileType       String
+  mimeType       String
+  fileSize       Int
+  description    String?
+  uploadedBy     Int
+  uploadedAt     DateTime   @default(now())
+}
