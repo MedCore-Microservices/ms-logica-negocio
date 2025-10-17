@@ -3,9 +3,17 @@ const diagnosticRoutes = require('./routes/diagnosticRoutes');
 const patientRoutes = require('./routes/patientRoutes');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001'], // Frontend y Auth
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Middlewares básicos
 app.use(express.json());
