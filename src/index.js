@@ -1,5 +1,6 @@
 const express = require('express');
 const diagnosticRoutes = require('./routes/diagnosticRoutes');
+const patientRoutes = require('./routes/patientRoutes');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -18,6 +19,7 @@ app.use((req, res, next) => {
 
 // Rutas
 app.use('/api/diagnostics', diagnosticRoutes);
+app.use('/api/patients', patientRoutes);
 
 // Ruta de salud
 app.get('/health', (req, res) => {
@@ -51,11 +53,10 @@ app.get('/test-db', async (req, res) => {
   }
 });
 
-// Manejo de errores global (CORREGIDO - sin referencia a multer)
+// Manejo de errores global
 app.use((error, req, res, next) => {
   console.error('Error global:', error);
   
-  // Manejar errores de Multer si existen
   if (error.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({
       success: false,
