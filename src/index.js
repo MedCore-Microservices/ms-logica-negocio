@@ -2,6 +2,7 @@ const express = require('express');
 const diagnosticRoutes = require('./routes/diagnosticRoutes');
 const patientRoutes = require('./routes/patientRoutes');
 const { PrismaClient } = require('@prisma/client');
+const documentRoutes = require('./routes/documentRoutes');
 const prisma = new PrismaClient();
 const cors = require('cors');
 
@@ -28,6 +29,7 @@ app.use((req, res, next) => {
 // Rutas
 app.use('/api/diagnostics', diagnosticRoutes);
 app.use('/api/patients', patientRoutes);
+app.use('/api/documents', documentRoutes);
 
 // Ruta de salud
 app.get('/health', (req, res) => {
