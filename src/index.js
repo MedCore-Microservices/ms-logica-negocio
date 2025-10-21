@@ -1,13 +1,14 @@
 const express = require('express');
 const diagnosticRoutes = require('./routes/diagnosticRoutes');
 const patientRoutes = require('./routes/patientRoutes');
+const medicalRecordRoutes = require('./routes/medicalRecordRoutes');
 const { PrismaClient } = require('@prisma/client');
 const documentRoutes = require('./routes/documentRoutes');
 const prisma = new PrismaClient();
 const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = 3002;
 
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:3001'], // Frontend y Auth
@@ -30,6 +31,9 @@ app.use((req, res, next) => {
 app.use('/api/diagnostics', diagnosticRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/documents', documentRoutes);
+
+// Rutas para historias clínicas
+app.use('/api/medical-records', medicalRecordRoutes);
 
 // Ruta de salud
 app.get('/health', (req, res) => {
