@@ -1,14 +1,19 @@
+// Cargar variables de entorno desde .env lo antes posible
+require('dotenv').config();
+
 const express = require('express');
 const diagnosticRoutes = require('./routes/diagnosticRoutes');
 const patientRoutes = require('./routes/patientRoutes');
 const medicalRecordRoutes = require('./routes/medicalRecordRoutes');
 const { PrismaClient } = require('@prisma/client');
 const documentRoutes = require('./routes/documentRoutes');
-const prisma = new PrismaClient();
 const cors = require('cors');
 
 const app = express();
-const PORT = 3002;
+const PORT = process.env.PORT || 3002;
+
+// Crear instancia de Prisma después de cargar variables de entorno
+const prisma = new PrismaClient();
 
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:3001'], // Frontend y Auth

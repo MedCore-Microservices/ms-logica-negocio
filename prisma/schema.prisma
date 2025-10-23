@@ -33,6 +33,7 @@ model User {
   phone                String?
   dateOfBirth          DateTime?
   age                  Int?
+  gender               String?
   licenseNumber        String?
   emergencyContact     String?
   bloodType            String?
