@@ -10,7 +10,7 @@ const documentRoutes = require('./routes/documentRoutes');
 const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = 3002;
 
 // Crear instancia de Prisma después de cargar variables de entorno
 const prisma = new PrismaClient();
