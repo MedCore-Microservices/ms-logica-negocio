@@ -12,6 +12,10 @@ const mockPrisma = {
 };
 
 jest.doMock('../../config/database', () => mockPrisma);
+// Evitar llamadas reales de notificaciones durante tests
+jest.doMock('../../services/NotificationService', () => ({
+  autoNotifyAppointment: jest.fn().mockResolvedValue({ success: true })
+}));
 
 const AppointmentService = require('../../services/AppointmentService');
 

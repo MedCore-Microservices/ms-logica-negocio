@@ -1,5 +1,7 @@
 // services/AppointmentService.js
 const prisma = require('../config/database');
+const notificationsConfig = require('../config/notifications');
+const NotificationService = require('./NotificationService');
 
 // Constantes de negocio
 const WORK_START_HOUR = 8;   // 08:00
@@ -121,7 +123,14 @@ class AppointmentService {
         status: newStatus,
       }
     });
-
+    // Notificar automáticamente (best-effort)
+    if (notificationsConfig.auto) {
+      try {
+        await NotificationService.autoNotifyAppointment('creada', created.id);
+      } catch (e) {
+        console.warn('[Appointment] Notificación falló (create):', e.message);
+      }
+    }
     return created;
   }
 
@@ -163,7 +172,13 @@ class AppointmentService {
       where: { id: appt.id },
       data,
     });
-
+    if (notificationsConfig.auto) {
+      try {
+        await NotificationService.autoNotifyAppointment('actualizada', updated.id);
+      } catch (e) {
+        console.warn('[Appointment] Notificación falló (update):', e.message);
+      }
+    }
     return updated;
   }
 
@@ -175,10 +190,18 @@ class AppointmentService {
       throw new Error('Las citas solo pueden modificarse hasta 12 horas antes');
     }
 
-    return await prisma.appointment.update({
+    const cancelled = await prisma.appointment.update({
       where: { id: appt.id },
       data: { status: APPOINTMENT_STATUS.CANCELADA }
     });
+    if (notificationsConfig.auto) {
+      try {
+        await NotificationService.autoNotifyAppointment('cancelada', cancelled.id);
+      } catch (e) {
+        console.warn('[Appointment] Notificación falló (cancel):', e.message);
+      }
+    }
+    return cancelled;
   }
 }
 

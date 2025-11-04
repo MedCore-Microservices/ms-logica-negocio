@@ -4,6 +4,7 @@ require('dotenv').config();
 const express = require('express');
 const diagnosticRoutes = require('./routes/diagnosticRoutes');
 const appointmentRoutes = require('./routes/appointmentRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const patientRoutes = require('./routes/patientRoutes');
 const medicalRecordRoutes = require('./routes/medicalRecordRoutes');
 const { PrismaClient } = require('@prisma/client');
@@ -36,6 +37,7 @@ app.use((req, res, next) => {
 // Rutas
 app.use('/api/diagnostics', diagnosticRoutes);
 app.use('/api/appointments', appointmentRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/documents', documentRoutes);
 
