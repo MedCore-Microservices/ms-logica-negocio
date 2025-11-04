@@ -19,11 +19,7 @@ const fsMock = {
 };
 
 // 2. Configurar los mocks ANTES de importar el servicio
-jest.doMock('../../config/database', () => ({
-  __esModule: true,
-  default: mockPrisma,
-  prisma: mockPrisma,
-}));
+jest.doMock('../../config/database', () => mockPrisma);
 
 jest.doMock('fs', () => fsMock);
 
