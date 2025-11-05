@@ -7,6 +7,7 @@ const appointmentRoutes = require('./routes/appointmentRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const patientRoutes = require('./routes/patientRoutes');
 const medicalRecordRoutes = require('./routes/medicalRecordRoutes');
+const queueRoutes = require('./routes/queueRoutes');
 const { PrismaClient } = require('@prisma/client');
 const documentRoutes = require('./routes/documentRoutes');
 const cors = require('cors');
@@ -40,6 +41,7 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/queue', queueRoutes);
 
 // Rutas para historias clínicas
 app.use('/api/medical-records', medicalRecordRoutes);
