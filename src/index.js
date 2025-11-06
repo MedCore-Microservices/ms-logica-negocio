@@ -3,14 +3,20 @@ require('dotenv').config();
 
 const express = require('express');
 const diagnosticRoutes = require('./routes/diagnosticRoutes');
+const appointmentRoutes = require('./routes/appointmentRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const patientRoutes = require('./routes/patientRoutes');
 const medicalRecordRoutes = require('./routes/medicalRecordRoutes');
+const queueRoutes = require('./routes/queueRoutes');
 const { PrismaClient } = require('@prisma/client');
 const documentRoutes = require('./routes/documentRoutes');
 const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+
+// Crear instancia de Prisma después de cargar variables de entorno
+const prisma = new PrismaClient();
 
 // Crear instancia de Prisma después de cargar variables de entorno
 const prisma = new PrismaClient();
@@ -34,8 +40,11 @@ app.use((req, res, next) => {
 
 // Rutas
 app.use('/api/diagnostics', diagnosticRoutes);
+app.use('/api/appointments', appointmentRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/queue', queueRoutes);
 
 // Rutas para historias clínicas
 app.use('/api/medical-records', medicalRecordRoutes);

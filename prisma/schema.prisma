@@ -60,6 +60,10 @@ model User {
 
   diagnosticsAsPatient Diagnostic[] @relation("PatientDiagnostics")
   diagnosticsAsDoctor  Diagnostic[] @relation("DoctorDiagnostics")
+
+  // Cola de turnos
+  queueTicketsAsDoctor  QueueTicket[] @relation("QueueTicketDoctor")
+  queueTicketsAsPatient QueueTicket[] @relation("QueueTicketPatient")
 }
 
 // AGREGAR ESTAS DOS NUEVAS RELACIONES para Diagnostic
@@ -83,6 +87,7 @@ model Specialization {
   users        User[] // Solo médicos deberían tener esto (lógica en app)
   departmentId Int? // Nuevo campo opcional
   department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  appointments Appointment[]
 }
 
 model TokenBlacklist {
@@ -108,6 +113,8 @@ model Appointment {
   user            User           @relation("UserAppointments", fields: [userId], references: [id], onDelete: Cascade)
   doctorId        Int? // Relación con el médico
   doctor          User?          @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: SetNull)
+  specializationId Int?
+  specialization   Specialization? @relation(fields: [specializationId], references: [id], onDelete: SetNull)
   medicalRecordId Int? // Relación con la historia clínica (opcional)
   medicalRecord   MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
   date            DateTime // Fecha y hora de la cita
@@ -183,3 +190,32 @@ model DiagnosticDocument {
   uploadedBy     Int
   uploadedAt     DateTime   @default(now())
 }
+
+// ========================
+// QUEUE MODELS (mirror of ms-auth for client usage; migrations run in ms-auth)
+// ========================
+
+enum QueueStatus {
+  WAITING
+  CALLED
+  COMPLETED
+  CANCELLED
+}
+
+model QueueTicket {
+  id          Int          @id @default(autoincrement())
+  doctorId    Int
+  patientId   Int
+  status      QueueStatus  @default(WAITING)
+  createdAt   DateTime     @default(now())
+  calledAt    DateTime?
+  completedAt DateTime?
+  updatedAt   DateTime     @updatedAt
+
+  doctor  User @relation("QueueTicketDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
+  patient User @relation("QueueTicketPatient", fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, status, createdAt])
+  @@index([patientId, status])
+}
+
