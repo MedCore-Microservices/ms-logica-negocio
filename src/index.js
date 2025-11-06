@@ -18,9 +18,6 @@ const PORT = process.env.PORT || 3002;
 // Crear instancia de Prisma después de cargar variables de entorno
 const prisma = new PrismaClient();
 
-// Crear instancia de Prisma después de cargar variables de entorno
-const prisma = new PrismaClient();
-
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:3001'], // Frontend y Auth
   credentials: true,
