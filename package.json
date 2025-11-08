@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "cross-env NODE_ENV=test jest",
-    "dev": "nodemon src/index.js",
+    "dev": "cross-env PORT=3002 nodemon src/index.js",
     "start": "node src/index.js"
   },
   "keywords": [],

@@ -16,7 +16,24 @@ const authenticate = async (req, res, next) => {
     });
 
     // Si llegamos aquí, el token es válido
-    req.user = authResponse.data.user;
+    const user = authResponse.data.user || {};
+    // Normalizar rol para evitar desajustes (e.g., "doctor" -> "MEDICO", acentos, etc.)
+    const normalize = (v) =>
+      String(v || '')
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // quitar acentos
+        .trim();
+
+    let role = normalize(user.role);
+    if (role === 'DOCTOR') role = 'MEDICO';
+    if (role === 'ADMIN') role = 'ADMINISTRADOR';
+
+    req.user = { ...user, role };
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[authMiddleware] user authenticated:', { id: req.user.id, role: req.user.role });
+    }
     next();
 
   } catch (error) {
@@ -27,14 +44,30 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-// Middleware para verificar roles específicos
+// Middleware para verificar roles específicos (tolerante a formato)
 const requireRole = (roles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Usuario no autenticado' });
     }
 
-    if (!roles.includes(req.user.role)) {
+    const normalize = (v) =>
+      String(v || '')
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+
+    const rolesNormalized = roles.map(normalize).map((r) => (r === 'DOCTOR' ? 'MEDICO' : r === 'ADMIN' ? 'ADMINISTRADOR' : r));
+    let userRole = normalize(req.user.role);
+    if (userRole === 'DOCTOR') userRole = 'MEDICO';
+    if (userRole === 'ADMIN') userRole = 'ADMINISTRADOR';
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[requireRole] check', { userRole, rolesNormalized });
+    }
+
+    if (!rolesNormalized.includes(userRole)) {
       return res.status(403).json({ 
         message: 'No tienes permisos para esta acción',
         requiredRoles: roles,

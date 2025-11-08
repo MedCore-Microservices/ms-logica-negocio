@@ -29,6 +29,9 @@ async function current(req, res) {
 async function callNext(req, res) {
   try {
     const { doctorId } = req.body;
+    if (!doctorId) {
+      return res.status(400).json({ success: false, message: 'doctorId es obligatorio' });
+    }
     const next = await service.callNext(doctorId);
     res.status(200).json({ success: true, message: next ? 'Siguiente llamado' : 'No hay en espera', data: next });
   } catch (error) {
