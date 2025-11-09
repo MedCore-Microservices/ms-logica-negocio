@@ -15,7 +15,7 @@ class QueueService {
 
   async getPosition(ticket) {
     if (!ticket) return null;
-    if (ticket.status !== STATUS.WAITING) return 0; // ya llamado o completado
+    if (ticket.status !== STATUS.WAITING) return null; // posición solo para WAITING
     const ahead = await prisma.queueTicket.count({
       where: {
         doctorId: ticket.doctorId,
@@ -31,14 +31,20 @@ class QueueService {
       throw new Error('doctorId y patientId son obligatorios');
     }
 
-    // Si ya está esperando en esa cola, devolver el mismo ticket con posición
-    const existing = await prisma.queueTicket.findFirst({
-      where: { doctorId: Number(doctorId), patientId: Number(patientId), status: STATUS.WAITING },
+    // Verificar si ya existe un ticket WAITING o CALLED para ese doctor/paciente
+    const duplicate = await prisma.queueTicket.findFirst({
+      where: {
+        doctorId: Number(doctorId),
+        patientId: Number(patientId),
+        status: { in: [STATUS.WAITING, STATUS.CALLED] },
+      },
       orderBy: { createdAt: 'asc' },
     });
-    if (existing) {
-      const position = await this.getPosition(existing);
-      return { ticket: existing, position };
+    if (duplicate) {
+      const err = new Error('Ya tienes un turno activo o en espera con este médico');
+      err.code = 'DUPLICATE_QUEUE';
+      err.status = 409;
+      throw err;
     }
 
     const ticket = await prisma.queueTicket.create({
@@ -46,6 +52,10 @@ class QueueService {
         doctorId: Number(doctorId),
         patientId: Number(patientId),
         status: STATUS.WAITING,
+      },
+      include: {
+        patient: { select: { id: true, fullname: true } },
+        doctor: { select: { id: true, fullname: true } },
       },
     });
     const position = await this.getPosition(ticket);
@@ -56,6 +66,10 @@ class QueueService {
     const current = await prisma.queueTicket.findFirst({
       where: { doctorId: Number(doctorId), status: STATUS.CALLED },
       orderBy: { calledAt: 'desc' },
+      include: {
+        patient: { select: { id: true, fullname: true } },
+        doctor: { select: { id: true, fullname: true } },
+      },
     });
     return current || null;
   }
@@ -64,6 +78,17 @@ class QueueService {
     if (!doctorId) throw new Error('doctorId es obligatorio');
 
     return await prisma.$transaction(async (tx) => {
+      // Política elegida: completar el ticket CALLED activo antes de llamar al siguiente.
+      const active = await tx.queueTicket.findFirst({
+        where: { doctorId: Number(doctorId), status: STATUS.CALLED },
+        orderBy: { calledAt: 'desc' },
+      });
+      if (active) {
+        await tx.queueTicket.update({
+          where: { id: active.id },
+          data: { status: STATUS.COMPLETED, completedAt: new Date() },
+        });
+      }
       // Tomar el primer WAITING por createdAt asc
       const next = await tx.queueTicket.findFirst({
         where: { doctorId: Number(doctorId), status: STATUS.WAITING },
@@ -92,7 +117,13 @@ class QueueService {
         return retry;
       }
 
-      return await tx.queueTicket.findUnique({ where: { id: next.id } });
+      return await tx.queueTicket.findUnique({
+        where: { id: next.id },
+        include: {
+          patient: { select: { id: true, fullname: true } },
+          doctor: { select: { id: true, fullname: true } },
+        },
+      });
     });
   }
 
@@ -112,6 +143,17 @@ class QueueService {
     if (!t) throw new Error('Ticket no encontrado');
     const position = await this.getPosition(t);
     return { ticket: t, position };
+  }
+
+  async getWaitingForDoctor(doctorId) {
+    return prisma.queueTicket.findMany({
+      where: { doctorId: Number(doctorId), status: STATUS.WAITING },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        patient: { select: { id: true, fullname: true } },
+        doctor: { select: { id: true, fullname: true } },
+      },
+    });
   }
 }
 

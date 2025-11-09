@@ -10,7 +10,8 @@ async function join(req, res) {
     const result = await service.join({ doctorId, patientId: effectivePatientId });
     res.status(201).json({ success: true, message: 'Ingresaste a la cola', data: result });
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    const status = error.status || (error.code === 'DUPLICATE_QUEUE' ? 409 : 400);
+    res.status(status).json({ success: false, message: error.message, code: error.code });
   }
 }
 
@@ -18,6 +19,10 @@ async function join(req, res) {
 async function current(req, res) {
   try {
     const { doctorId } = req.params;
+    // Seguridad: si es MEDICO solo puede consultar su propio doctorId
+    if (req.user?.role === 'MEDICO' && Number(doctorId) !== Number(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para consultar otro médico' });
+    }
     const current = await service.getCurrentForDoctor(doctorId);
     res.json({ success: true, data: current });
   } catch (error) {
@@ -31,6 +36,10 @@ async function callNext(req, res) {
     const { doctorId } = req.body;
     if (!doctorId) {
       return res.status(400).json({ success: false, message: 'doctorId es obligatorio' });
+    }
+    // Seguridad: si es MEDICO solo puede operar sobre su propio doctorId
+    if (req.user?.role === 'MEDICO' && Number(doctorId) !== Number(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para operar en otro médico' });
     }
     const next = await service.callNext(doctorId);
     res.status(200).json({ success: true, message: next ? 'Siguiente llamado' : 'No hay en espera', data: next });
@@ -61,4 +70,19 @@ async function position(req, res) {
   }
 }
 
-module.exports = { join, current, callNext, complete, position };
+// GET /api/queue/doctor/:doctorId/waiting
+async function waiting(req, res) {
+  try {
+    const { doctorId } = req.params;
+    // Seguridad: si es MEDICO solo puede consultar su propio doctorId
+    if (req.user?.role === 'MEDICO' && Number(doctorId) !== Number(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para consultar otro médico' });
+    }
+    const data = await service.getWaitingForDoctor(doctorId);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+}
+
+module.exports = { join, current, callNext, complete, position, waiting };

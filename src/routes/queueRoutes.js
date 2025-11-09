@@ -13,6 +13,9 @@ router.post('/join', authenticate, controller.join);
 // Obtener el ticket actual llamado para un médico
 router.get('/doctor/:doctorId/current', authenticate, controller.current);
 
+// Listar todos los tickets en WAITING para un médico (solo médico o admin)
+router.get('/doctor/:doctorId/waiting', authenticate, requireRole(canCallOrComplete), controller.waiting);
+
 // Llamar al siguiente de la cola (solo médico o admin)
 router.post('/call-next', authenticate, requireRole(canCallOrComplete), controller.callNext);
 
