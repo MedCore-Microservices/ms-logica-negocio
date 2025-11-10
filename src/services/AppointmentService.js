@@ -103,24 +103,35 @@ class AppointmentService {
       throw new Error('La cita debe estar dentro del horario laboral (08:00 - 18:00)');
     }
 
-    const overlaps = await this.hasOverlap(doctorId, start, end);
-    if (overlaps) {
-      throw new Error('El médico no está disponible en ese horario (solapamiento)');
-    }
-
     // Validar estado
     const newStatus = status || APPOINTMENT_STATUS.PENDIENTE;
     if (!Object.values(APPOINTMENT_STATUS).includes(newStatus)) {
       throw new Error('Estado de cita inválido');
     }
 
-    const created = await prisma.appointment.create({
-      data: {
-        userId: parseInt(userId),
-        doctorId: parseInt(doctorId),
-        date: start, // Guardamos solo inicio por esquema actual
-        reason,
-        status: newStatus,
+    // Concurrencia: usar transacción y volver a verificar solapamiento dentro de la misma
+    const created = await prisma.$transaction(async (tx) => {
+      const overlaps = await this.hasOverlap(doctorId, start, end);
+      if (overlaps) {
+        throw new Error('El médico no está disponible en ese horario (solapamiento)');
+      }
+
+      try {
+        return await tx.appointment.create({
+          data: {
+            userId: parseInt(userId),
+            doctorId: parseInt(doctorId),
+            date: start,
+            reason,
+            status: newStatus,
+          }
+        });
+      } catch (err) {
+        // Capturar violación de única (doctorId,date) => traducir a mensaje de solapamiento
+        if (err && err.code === 'P2002') {
+          throw new Error('El médico no está disponible en ese horario (solapamiento)');
+        }
+        throw err;
       }
     });
     // Notificar automáticamente (best-effort)
@@ -168,9 +179,22 @@ class AppointmentService {
       data.status = status;
     }
 
-    const updated = await prisma.appointment.update({
-      where: { id: appt.id },
-      data,
+    // Concurrencia: si cambia doctor/fecha, realizar actualización dentro de transacción para evitar condiciones de carrera
+    const updated = await prisma.$transaction(async (tx) => {
+      if (date || doctorId) {
+        const recheckOverlap = await this.hasOverlap(targetDoctorId, start, end, appt.id);
+        if (recheckOverlap) {
+          throw new Error('El médico no está disponible en ese horario (solapamiento)');
+        }
+      }
+      try {
+        return await tx.appointment.update({ where: { id: appt.id }, data });
+      } catch (err) {
+        if (err && err.code === 'P2002') {
+          throw new Error('El médico no está disponible en ese horario (solapamiento)');
+        }
+        throw err;
+      }
     });
     if (notificationsConfig.auto) {
       try {

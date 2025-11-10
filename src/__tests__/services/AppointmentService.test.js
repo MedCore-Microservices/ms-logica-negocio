@@ -1,4 +1,5 @@
 const mockPrisma = {
+  $transaction: async (cb) => cb(mockPrisma),
   appointment: {
     findMany: jest.fn(),
     create: jest.fn(),
