@@ -138,6 +138,44 @@ class QueueService {
     return updated;
   }
 
+  // Cancelar un ticket (no puede cancelar si ya está COMPLETED)
+  // Retorna el ticket cancelado y la lista actualizada de tickets WAITING para el médico con sus posiciones recalculadas
+  async cancel(ticketId) {
+    const t = await prisma.queueTicket.findUnique({
+      where: { id: Number(ticketId) },
+      include: { patient: true, doctor: true }
+    });
+    if (!t) {
+      const err = new Error('Ticket no encontrado');
+      err.status = 404;
+      throw err;
+    }
+
+    if (t.status === STATUS.COMPLETED) {
+      const err = new Error('No se puede cancelar un ticket ya completado');
+      err.status = 400;
+      throw err;
+    }
+
+    const updated = await prisma.queueTicket.update({
+      where: { id: t.id },
+      data: { status: STATUS.CANCELLED },
+      include: { patient: { select: { id: true, fullname: true } }, doctor: { select: { id: true, fullname: true } } }
+    });
+
+
+    const waiting = await prisma.queueTicket.findMany({
+      where: { doctorId: t.doctorId, status: STATUS.WAITING },
+      orderBy: { createdAt: 'asc' },
+      include: { patient: { select: { id: true, fullname: true } }, doctor: { select: { id: true, fullname: true } } }
+    });
+
+    // Añadir posición basada en orden
+    const waitingWithPositions = waiting.map((w, idx) => ({ ticket: w, position: idx + 1 }));
+
+    return { cancelled: updated, waiting: waitingWithPositions };
+  }
+
   async position(ticketId) {
     const t = await prisma.queueTicket.findUnique({ where: { id: Number(ticketId) } });
     if (!t) throw new Error('Ticket no encontrado');

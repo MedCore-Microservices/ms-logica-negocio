@@ -25,4 +25,10 @@ router.put('/ticket/:ticketId/complete', authenticate, requireRole(canCallOrComp
 // Ver posición de un ticket
 router.get('/ticket/:ticketId/position', authenticate, controller.position);
 
+//Cancelar un ticket 
+router.get('/ticket/:tickedId/cancel', authenticate, controller.cancelTicket);
+
+// Cancelar un ticket (paciente puede cancelar su propio ticket)
+router.delete('/ticket/:ticketId/cancel', authenticate, controller.cancelTicket);
+
 module.exports = router;

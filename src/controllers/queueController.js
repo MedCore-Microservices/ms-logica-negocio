@@ -37,7 +37,7 @@ async function callNext(req, res) {
     if (!doctorId) {
       return res.status(400).json({ success: false, message: 'doctorId es obligatorio' });
     }
-    // Seguridad: si es MEDICO solo puede operar sobre su propio doctorId
+    // Si es MEDICO solo puede operar sobre su propio doctorId
     if (req.user?.role === 'MEDICO' && Number(doctorId) !== Number(req.user.id)) {
       return res.status(403).json({ success: false, message: 'No autorizado para operar en otro médico' });
     }
@@ -74,7 +74,7 @@ async function position(req, res) {
 async function waiting(req, res) {
   try {
     const { doctorId } = req.params;
-    // Seguridad: si es MEDICO solo puede consultar su propio doctorId
+    //Si es MEDICO solo puede consultar su propio doctorId
     if (req.user?.role === 'MEDICO' && Number(doctorId) !== Number(req.user.id)) {
       return res.status(403).json({ success: false, message: 'No autorizado para consultar otro médico' });
     }
@@ -85,4 +85,36 @@ async function waiting(req, res) {
   }
 }
 
-module.exports = { join, current, callNext, complete, position, waiting };
+// DELETE /api/queue/ticket/:ticketId/cancel
+async function cancelTicket(req, res) {
+  try {
+    const { ticketId } = req.params;
+
+    // Permisos: el paciente puede cancelar su propio ticket; medico/admin pueden también
+    const ticket = await service.position(ticketId).catch(() => null);
+    
+    if (!ticket || !ticket.ticket) {
+      return res.status(404).json({ success: false, message: 'Ticket no encontrado' });
+    }
+
+    const t = ticket.ticket;
+
+    // Si el user es PACIENTE, solo su propio ticket
+    if (req.user?.role === 'PACIENTE' && Number(req.user.id) !== Number(t.patientId)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para cancelar este ticket' });
+    }
+
+    // Si el ticket ya estaba cancelado, responder con info
+    if (t.status === service.getStatuses().CANCELLED) {
+      return res.status(200).json({ success: true, message: 'Ticket ya cancelado', data: { ticket: t } });
+    }
+
+    const result = await service.cancel(ticketId);
+    return res.status(200).json({ success: true, message: 'Ticket cancelado', data: result });
+  } catch (error) {
+    const status = error.status || 400;
+    return res.status(status).json({ success: false, message: error.message });
+  }
+}
+
+module.exports = { join, current, callNext, complete, position, waiting, cancelTicket };
