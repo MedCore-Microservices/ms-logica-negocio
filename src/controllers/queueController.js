@@ -24,7 +24,11 @@ async function current(req, res) {
       return res.status(403).json({ success: false, message: 'No autorizado para consultar otro médico' });
     }
     const current = await service.getCurrentForDoctor(doctorId);
-    res.json({ success: true, data: current });
+      // Si no hay paciente llamado actualmente, devolver 202 Accepted
+      if (!current) {
+        return res.status(202).json({ success: true, data: null });
+      }
+      return res.status(200).json({ success: true, data: current });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
