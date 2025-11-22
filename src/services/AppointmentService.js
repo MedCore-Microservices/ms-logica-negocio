@@ -17,6 +17,24 @@ const APPOINTMENT_STATUS = {
   COMPLETADA: 'COMPLETADA',
 };
 
+// Mapa de normalización (acepta variantes en inglés y español)
+const APPOINTMENT_STATUS_MAP = {
+  PENDING: APPOINTMENT_STATUS.PENDIENTE,
+  PENDIENTE: APPOINTMENT_STATUS.PENDIENTE,
+  CONFIRMED: APPOINTMENT_STATUS.CONFIRMADA,
+  CONFIRMADA: APPOINTMENT_STATUS.CONFIRMADA,
+  CANCELLED: APPOINTMENT_STATUS.CANCELADA,
+  CANCELADA: APPOINTMENT_STATUS.CANCELADA,
+  COMPLETED: APPOINTMENT_STATUS.COMPLETADA,
+  COMPLETADA: APPOINTMENT_STATUS.COMPLETADA,
+};
+
+function normalizeAppointmentStatus(s) {
+  if (!s) return undefined;
+  const key = String(s).toUpperCase().trim();
+  return APPOINTMENT_STATUS_MAP[key] || String(s).toUpperCase();
+}
+
 // Utilidades de tiempo
 function addMinutes(date, minutes) {
   return new Date(date.getTime() + minutes * 60000);
@@ -103,8 +121,8 @@ class AppointmentService {
       throw new Error('La cita debe estar dentro del horario laboral (08:00 - 18:00)');
     }
 
-    // Validar estado
-    const newStatus = status || APPOINTMENT_STATUS.PENDIENTE;
+    // Normalizar y validar estado (acepta inglés/español)
+    const newStatus = normalizeAppointmentStatus(status) || APPOINTMENT_STATUS.PENDIENTE;
     if (!Object.values(APPOINTMENT_STATUS).includes(newStatus)) {
       throw new Error('Estado de cita inválido');
     }
@@ -145,6 +163,18 @@ class AppointmentService {
     return created;
   }
 
+  // Obtener citas confirmadas para un doctor
+  async getConfirmedForDoctor(doctorId) {
+    return prisma.appointment.findMany({
+      where: { doctorId: parseInt(doctorId), status: APPOINTMENT_STATUS.CONFIRMADA },
+      orderBy: { date: 'asc' },
+      include: {
+        user: { select: { id: true, fullname: true } },
+        doctor: { select: { id: true, fullname: true } }
+      }
+    });
+  }
+
   async updateAppointment(appointmentId, { date, durationMinutes, reason, status, doctorId }) {
     const appt = await prisma.appointment.findUnique({ where: { id: parseInt(appointmentId) } });
     if (!appt) throw new Error('Cita no encontrada');
@@ -173,10 +203,11 @@ class AppointmentService {
     if (reason) data.reason = reason;
     if (doctorId) data.doctorId = targetDoctorId;
     if (status) {
-      if (!Object.values(APPOINTMENT_STATUS).includes(status)) {
+      const normalized = normalizeAppointmentStatus(status);
+      if (!Object.values(APPOINTMENT_STATUS).includes(normalized)) {
         throw new Error('Estado de cita inválido');
       }
-      data.status = status;
+      data.status = normalized;
     }
 
     // Concurrencia: si cambia doctor/fecha, realizar actualización dentro de transacción para evitar condiciones de carrera

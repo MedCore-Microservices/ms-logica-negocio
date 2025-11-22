@@ -1,6 +1,8 @@
 // controllers/queueController.js
 const QueueService = require('../services/QueueService');
 const service = new QueueService();
+const AppointmentService = require('../services/AppointmentService');
+const appointmentService = new AppointmentService();
 
 // POST /api/queue/join
 async function join(req, res) {
@@ -89,6 +91,21 @@ async function waiting(req, res) {
   }
 }
 
+// GET /api/queue/doctor/:doctorId/confirmed
+async function confirmed(req, res) {
+  try {
+    const { doctorId } = req.params;
+    // Si es MEDICO solo puede consultar su propio doctorId
+    if (req.user?.role === 'MEDICO' && Number(doctorId) !== Number(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para consultar otro médico' });
+    }
+    const data = await appointmentService.getConfirmedForDoctor(doctorId);
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+}
+
 // DELETE /api/queue/ticket/:ticketId/cancel
 async function cancelTicket(req, res) {
   try {
@@ -121,4 +138,5 @@ async function cancelTicket(req, res) {
   }
 }
 
-module.exports = { join, current, callNext, complete, position, waiting, cancelTicket };
+module.exports = { join, current, callNext, complete, position, waiting, cancelTicket, confirmed };
+
