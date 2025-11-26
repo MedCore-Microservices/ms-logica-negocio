@@ -13,6 +13,9 @@ router.post('/join', authenticate, controller.join);
 // Obtener el ticket actual llamado para un médico
 router.get('/doctor/:doctorId/current', authenticate, controller.current);
 
+// Historial de pacientes del médico (COMPLETED / CANCELLED)
+router.get('/doctor/:doctorId/history', authenticate, requireRole(canCallOrComplete), controller.history);
+
 // Listar todos los tickets en WAITING para un médico (solo médico o admin)
 router.get('/doctor/:doctorId/waiting', authenticate, requireRole(canCallOrComplete), controller.waiting);
 

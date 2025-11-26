@@ -30,6 +30,32 @@ async function current(req, res) {
   }
 }
 
+// GET /api/queue/doctor/:doctorId/history
+async function history(req, res) {
+  try {
+    const { doctorId } = req.params;
+
+    // Seguridad: si es MEDICO solo puede consultar su propio doctorId
+    if (req.user?.role === 'MEDICO' && Number(doctorId) !== Number(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para consultar otro médico' });
+    }
+
+    // Opciones de query: limit, offset, status (status puede enviarse como CSV)
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
+    const offset = req.query.offset ? parseInt(req.query.offset, 10) : 0;
+    let status = undefined;
+    if (req.query.status) {
+      // status=COMPLETED,CANCELLED
+      status = String(req.query.status).split(',').map(s => s.trim().toUpperCase());
+    }
+
+    const data = await service.getHistoryForDoctor(doctorId, { limit, offset, status });
+    return res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
 // POST /api/queue/call-next
 async function callNext(req, res) {
   try {
@@ -117,4 +143,4 @@ async function cancelTicket(req, res) {
   }
 }
 
-module.exports = { join, current, callNext, complete, position, waiting, cancelTicket };
+module.exports = { join, current, history, callNext, complete, position, waiting, cancelTicket };

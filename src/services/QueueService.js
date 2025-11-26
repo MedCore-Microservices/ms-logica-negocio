@@ -193,6 +193,42 @@ class QueueService {
       },
     });
   }
+
+  /**
+   * Obtener historial de tickets para un médico.
+   * Por defecto devuelve tickets con status COMPLETED o CANCELLED,
+   * ordenados por `updatedAt` descendente.
+   * Opciones:
+   *  - limit: número máximo de elementos (default 50)
+   *  - offset: salto para paginación (default 0)
+   *  - status: array opcional de estados a filtrar (e.g. ['COMPLETED'])
+   */
+  async getHistoryForDoctor(doctorId, options = {}) {
+    const { limit = 50, offset = 0, status } = options;
+
+    const allowedStatuses = [STATUS.COMPLETED, STATUS.CANCELLED, STATUS.CALLED, STATUS.WAITING];
+    let statusFilter = [STATUS.COMPLETED, STATUS.CANCELLED];
+
+    if (Array.isArray(status) && status.length > 0) {
+      // Filtrar solo estados permitidos
+      statusFilter = status.filter(s => allowedStatuses.includes(s));
+      if (statusFilter.length === 0) statusFilter = [STATUS.COMPLETED, STATUS.CANCELLED];
+    }
+
+    return prisma.queueTicket.findMany({
+      where: {
+        doctorId: Number(doctorId),
+        status: { in: statusFilter }
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: Number(limit),
+      skip: Number(offset),
+      include: {
+        patient: { select: { id: true, fullname: true, identificationNumber: true, phone: true } },
+        doctor: { select: { id: true, fullname: true } }
+      }
+    });
+  }
 }
 
 module.exports = QueueService;
