@@ -64,6 +64,9 @@ model User {
   // Cola de turnos
   queueTicketsAsDoctor  QueueTicket[] @relation("QueueTicketDoctor")
   queueTicketsAsPatient QueueTicket[] @relation("QueueTicketPatient")
+  // Prescripciones (relaciones nombradas para evitar ambigüedad)
+  prescriptionsAsDoctor  Prescription[] @relation("PrescriptionDoctor")
+  prescriptionsAsPatient Prescription[] @relation("PrescriptionPatient")
 }
 
 // AGREGAR ESTAS DOS NUEVAS RELACIONES para Diagnostic
@@ -217,5 +220,22 @@ model QueueTicket {
 
   @@index([doctorId, status, createdAt])
   @@index([patientId, status])
+}
+
+// Prescripciones médicas
+model Prescription {
+  id          Int      @id @default(autoincrement())
+  doctorId    Int
+  patientId   Int
+  title       String
+  notes       String?
+  medications Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  doctor User @relation("PrescriptionDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
+  patient User @relation("PrescriptionPatient", fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, patientId])
 }
 
