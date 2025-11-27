@@ -85,4 +85,83 @@ async function createLaboratoryOrder(payload = {}, ctx = {}) {
   return newOrder;
 }
 
-module.exports = { createLaboratoryOrder };
+async function createRadiologyOrder(payload = {}, ctx = {}) {
+  const { patientId, requestedBy, priority, clinicalNotes, requestedTests, requestedAt } = payload;
+
+  if (!patientId) {
+    const err = new Error('patientId es requerido');
+    err.status = 400;
+    throw err;
+  }
+
+  // Verificar que exista el paciente
+  const patient = await prisma.user.findUnique({ where: { id: Number(patientId) } });
+  if (!patient) {
+    const err = new Error('Paciente no encontrado');
+    err.status = 404;
+    throw err;
+  }
+
+  // Buscar la historia clínica más reciente del paciente
+  let medRecord = await prisma.medicalRecord.findFirst({
+    where: { userId: Number(patientId) },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  // Si no existe, crear una historia clínica mínima
+  if (!medRecord) {
+    medRecord = await prisma.medicalRecord.create({
+      data: {
+        userId: Number(patientId),
+        diagnosis: 'Ordenes de radiología (auto-generado)',
+        description: 'Historia clínica creada automáticamente para almacenar órdenes de radiología',
+        treatment: 'N/A'
+      }
+    });
+  }
+
+  const orderId = genId('radord');
+  const now = new Date();
+
+  // Para radiología, incluir campos típicos: modality, bodyPart, laterality
+  const tests = (Array.isArray(requestedTests) ? requestedTests : []).map((t) => ({
+    id: genId('t'),
+    testCode: t.testCode || t.code || null,
+    name: t.name || t.testName || null,
+    modality: t.modality || t.type || null,
+    bodyPart: t.bodyPart || t.region || null,
+    laterality: t.laterality || null,
+    notes: t.notes || null,
+    status: 'SCHEDULED',
+    createdAt: now
+  }));
+
+  const newOrder = {
+    id: orderId,
+    type: 'radiology',
+    patientId: Number(patientId),
+    requestedBy: requestedBy || ctx.userId || null,
+    priority: priority || 'routine',
+    clinicalNotes: clinicalNotes || null,
+    requestedAt: requestedAt || now,
+    status: 'CREATED',
+    tests,
+    createdAt: now
+  };
+
+  let existing = medRecord.medicalOrders;
+  if (!existing) existing = [];
+  if (!Array.isArray(existing)) existing = [existing];
+
+  const updatedOrders = [...existing, newOrder];
+
+  const updatedRecord = await prisma.medicalRecord.update({
+    where: { id: medRecord.id },
+    data: { medicalOrders: updatedOrders }
+  });
+
+  return newOrder;
+}
+
+module.exports = { createLaboratoryOrder, createRadiologyOrder };
+

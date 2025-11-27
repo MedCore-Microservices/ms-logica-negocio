@@ -12,4 +12,11 @@ router.post(
   controller.createLaboratoryOrder
 );
 
+// Crear orden de radiología - accesible para MEDICO, ENFERMERA y ADMINISTRADOR
+router.post(
+  '/radiology',
+  authenticate,
+  requireRole(['MEDICO', 'ENFERMERA', 'ADMINISTRADOR']),
+  controller.createRadiologyOrder
+);
 module.exports = router;
