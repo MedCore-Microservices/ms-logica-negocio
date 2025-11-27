@@ -11,4 +11,7 @@ router.post('/', authenticate, requireRole(['MEDICO', 'ADMINISTRADOR']), control
 // Autenticado: paciente puede ver su propio historial; MEDICO/ADMINISTRADOR pueden ver cualquiera
 router.get('/patient/:patientId', authenticate, controller.getByPatient);
 
+// Verificar alergias: body { patientId, medications }
+router.post('/check-allergies', authenticate, controller.checkAllergies);
+
 module.exports = router;
