@@ -1,5 +1,7 @@
 const PrescriptionService = require('../services/PrescriptionService');
 const service = new PrescriptionService();
+const PDFDocument = require('pdfkit');
+const fs = require('fs');
 
 // POST /api/prescriptions
 async function create(req, res) {
@@ -46,8 +48,6 @@ async function getByPatient(req, res) {
     return res.status(500).json({ success: false, message: error.message });
   }
 }
-
-module.exports = { create, getByPatient };
 
 // POST /api/prescriptions/check-allergies
 async function checkAllergies(req, res) {
@@ -173,3 +173,141 @@ async function estimateDuration(req, res) {
 }
 
 module.exports = { create, getByPatient, checkAllergies, estimateDuration };
+
+// GET /api/prescriptions/:id/pdf
+async function generatePdf(req, res) {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ success: false, message: 'id de prescripción requerido' });
+
+    const presc = await service.getById(id);
+    if (!presc) return res.status(404).json({ success: false, message: 'Prescripción no encontrada' });
+
+    // Log básico para depuración: ver qué llega desde la DB
+    console.log('[generatePdf] presc id=', presc.id, 'title=', presc.title, 'medsCount=', Array.isArray(presc.medications) ? presc.medications.length : 0);
+
+    const role = (req.user?.role || '').toUpperCase();
+    // paciente solo puede descargar su propia prescripción
+    if (role === 'PACIENTE' && Number(req.user.id) !== Number(presc.patientId)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para descargar esta prescripción' });
+    }
+
+
+    // Preparar headers y stream. Usar textos por defecto si faltan campos.
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="prescription-${presc.id}.pdf"`);
+
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+
+    // Acumulador de chunks para construir el buffer final
+    const chunks = [];
+    doc.on('data', (chunk) => {
+      chunks.push(chunk);
+      try { console.log('[generatePdf] doc chunk bytes=', chunk.length); } catch (e) { }
+    });
+    doc.on('end', () => { console.log('[generatePdf] doc end'); });
+    doc.on('error', (err) => { console.error('[generatePdf] doc error', err); });
+
+    res.on('close', () => { console.log('[generatePdf] response closed by client'); });
+    res.on('finish', () => { console.log('[generatePdf] response finished'); });
+
+    // Header
+    doc.fontSize(20).text('Prescripción Médica', { align: 'center' });
+    doc.moveDown();
+
+    doc.fontSize(12).text(`ID: ${presc.id}`);
+    const createdAtText = presc.createdAt ? new Date(presc.createdAt).toLocaleString() : 'Sin fecha';
+    doc.text(`Fecha: ${createdAtText}`);
+    doc.moveDown();
+
+    doc.text(`Doctor: ${presc.doctor?.fullname || presc.doctorId || 'N/D'}`);
+    doc.text(`Paciente: ${presc.patient?.fullname || presc.patientId || 'N/D'}`);
+    doc.moveDown();
+
+    if (presc.title) {
+      doc.fontSize(14).text(presc.title);
+      doc.moveDown();
+    }
+
+    if (presc.notes) {
+      doc.fontSize(12).text('Notas:');
+      doc.text(presc.notes);
+      doc.moveDown();
+    }
+
+    doc.fontSize(12).text('Medicamentos:');
+    doc.moveDown(0.5);
+    const meds = Array.isArray(presc.medications) ? presc.medications : [];
+    if (meds.length === 0) {
+      doc.text('No hay medicamentos registrados.');
+    } else {
+      meds.forEach((m, idx) => {
+      const medObj = (typeof m === 'string') ? { name: m } : m || {};
+      const name = medObj.name || JSON.stringify(medObj);
+      const dose = medObj.dose || medObj.dosage || '';
+      const duration = medObj.durationDays || medObj.duration || '';
+      let line = `${idx + 1}. ${name}`;
+      if (dose) line += ` - Dosificación: ${dose}`;
+      if (duration) line += ` - Duración: ${duration} días`;
+      doc.text(line);
+      });
+    }
+
+    // Asegurar que cerramos el documento y manejamos errores del stream
+    // Escribir también una copia local temporal y acumular en memoria
+    const tmpPath = `/tmp/prescription-${presc.id}.pdf`;
+    let fileStream;
+    try {
+      fileStream = fs.createWriteStream(tmpPath);
+      fileStream.on('finish', () => {
+        try {
+          const st = fs.statSync(tmpPath);
+          console.log('[generatePdf] temp file written:', tmpPath, 'size=', st.size);
+        } catch (e) {
+          console.error('[generatePdf] stat temp file error', e);
+        }
+      });
+      fileStream.on('error', (err) => { console.error('[generatePdf] fileStream error', err); });
+      doc.pipe(fileStream);
+    } catch (e) {
+      console.error('[generatePdf] could not create temp file', e);
+    }
+
+    // No hacemos pipe directo a res; acumulamos y enviaremos el buffer completo
+    doc.end();
+
+    // Cuando termine la generación, concatenamos y enviamos el buffer
+    doc.once('end', () => {
+      try {
+        const pdfBuffer = Buffer.concat(chunks);
+        console.log('[generatePdf] final buffer size=', pdfBuffer.length);
+        // Asegurar que el fichero temporal fue escrito (fileStream finish listener se encargará)
+        // Enviar al cliente con Content-Length
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="prescription-${presc.id}.pdf"`);
+          res.setHeader('Content-Length', pdfBuffer.length);
+          res.statusCode = 200;
+          res.end(pdfBuffer);
+        } else {
+          console.log('[generatePdf] headers already sent, cannot send buffer');
+        }
+      } catch (e) {
+        console.error('[generatePdf] error sending buffer', e);
+        try { if (!res.headersSent) res.status(500).json({ success: false, message: 'Error generando PDF' }); } catch(_){}
+      }
+    });
+  } catch (error) {
+    console.error('[generatePdf] error:', error);
+    // Si ya se enviaron headers (el stream empezó), solo terminar el stream
+    if (res.headersSent) {
+      try { res.end(); } catch (e) { /* ignore */ }
+      return;
+    }
+    const status = error.status || 500;
+    return res.status(status).json({ success: false, message: error.message });
+  }
+}
+
+  module.exports = { create, getByPatient, checkAllergies, estimateDuration, generatePdf };

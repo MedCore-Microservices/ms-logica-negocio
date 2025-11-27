@@ -11,6 +11,9 @@ router.post('/', authenticate, requireRole(['MEDICO', 'ADMINISTRADOR']), control
 // Autenticado: paciente puede ver su propio historial; MEDICO/ADMINISTRADOR pueden ver cualquiera
 router.get('/patient/:patientId', authenticate, controller.getByPatient);
 
+// Generar/descargar PDF de una prescripción por id
+router.get('/:id/pdf', authenticate, controller.generatePdf);
+
 // Verificar alergias: body { patientId, medications }
 router.post('/check-allergies', authenticate, controller.checkAllergies);
 

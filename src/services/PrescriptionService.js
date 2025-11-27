@@ -118,6 +118,24 @@ class PrescriptionService {
     return normalized;
   }
 
+  async getById(id) {
+    if (!id) return null;
+    const presc = await prisma.prescription.findUnique({
+      where: { id: Number(id) },
+      include: {
+        doctor: { select: { id: true, fullname: true } },
+        patient: { select: { id: true, fullname: true } }
+      }
+    });
+    if (!presc) return null;
+    const meds = Array.isArray(presc.medications) ? presc.medications.map((m) => {
+      const medObj = (typeof m === 'string') ? { name: m } : Object.assign({}, m);
+      if (!medObj.durationDays) medObj.durationDays = this.inferDuration(medObj);
+      return medObj;
+    }) : [];
+    return Object.assign({}, presc, { medications: meds });
+  }
+
   // Verificar alergias del paciente contra una lista de medicamentos
   // medications: array de objetos con al menos { name }
   async checkAllergies(patientId, medications) {
