@@ -102,4 +102,31 @@ async function getOrder(req, res) {
   }
 }
 
-module.exports = { createLaboratoryOrder, createRadiologyOrder, getOrder };
+// GET /api/medical-orders/patient/:patientId
+async function getOrdersByPatient(req, res) {
+  try {
+    const user = req.user || {};
+    const role = (user.role || '').toUpperCase();
+    const { patientId } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
+    const offset = req.query.offset ? parseInt(req.query.offset, 10) : 0;
+
+    if (!patientId || isNaN(patientId)) {
+      return res.status(400).json({ success: false, message: 'patientId es requerido y debe ser numérico' });
+    }
+
+    // Permisos: si es PACIENTE solo puede consultar su propio historial
+    if (role === 'PACIENTE' && Number(user.id) !== Number(patientId)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para consultar otro paciente' });
+    }
+
+    const data = await medicalOrderService.getOrdersByPatient(patientId, { limit, offset });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('[getOrdersByPatient] error:', error);
+    const status = error.status || 500;
+    return res.status(status).json({ success: false, message: error.message || 'Error interno' });
+  }
+}
+
+module.exports = { createLaboratoryOrder, createRadiologyOrder, getOrder, getOrdersByPatient };

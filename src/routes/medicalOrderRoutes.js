@@ -22,4 +22,7 @@ router.post(
 
 // Obtener orden médica por id - autenticado (PACIENTE solo su propia orden)
 router.get('/:id', authenticate, controller.getOrder);
+
+// Obtener órdenes de un paciente (paginadas) - autenticado (PACIENTE solo su propia lista)
+router.get('/patient/:patientId', authenticate, controller.getOrdersByPatient);
 module.exports = router;

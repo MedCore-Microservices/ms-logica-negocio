@@ -168,8 +168,6 @@ async function createRadiologyOrder(payload = {}, ctx = {}) {
 
   return newOrder;
 }
-
-module.exports = { createLaboratoryOrder, createRadiologyOrder };
  
 async function getOrderById(orderId) {
   if (!orderId) {
@@ -240,5 +238,61 @@ async function persistOrderToTable(newOrder, medRecordId) {
   }
 }
 
-module.exports = { createLaboratoryOrder, createRadiologyOrder, getOrderById };
+module.exports = { createLaboratoryOrder, createRadiologyOrder, getOrderById, getOrdersByPatient };
+
+async function getOrdersByPatient(patientId, opts = {}) {
+  if (!patientId) {
+    const err = new Error('patientId es requerido');
+    err.status = 400;
+    throw err;
+  }
+
+  const limit = opts.limit ? Number(opts.limit) : 50;
+  const offset = opts.offset ? Number(opts.offset) : 0;
+
+  // Intentar obtener desde la tabla MedicalOrder si existe
+  try {
+    const dbOrders = await prisma.medicalOrder.findMany({
+      where: { patientId: Number(patientId) },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset
+    });
+
+    if (dbOrders && dbOrders.length > 0) {
+      return dbOrders;
+    }
+  } catch (e) {
+    // Si falla (tabla no existe), caeremos al fallback
+  }
+
+  // Fallback: buscar en medicalRecord.medicalOrders (JSON)
+  const records = await prisma.medicalRecord.findMany({ where: { userId: Number(patientId) }, orderBy: { createdAt: 'desc' } });
+  const allOrders = [];
+
+  for (const rec of records) {
+    let orders = rec.medicalOrders;
+    if (!orders) continue;
+
+    if (typeof orders === 'string') {
+      try { orders = JSON.parse(orders); } catch (e) { orders = [orders]; }
+    }
+    if (!Array.isArray(orders)) orders = [orders];
+
+    for (const o of orders) {
+      allOrders.push({ ...o, medicalRecordId: rec.id, patientId: rec.userId });
+    }
+  }
+
+  // ordenar por createdAt si existe
+  allOrders.sort((a, b) => {
+    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return tb - ta;
+  });
+
+  // aplicar paginación
+  const paged = allOrders.slice(offset, offset + limit);
+  return paged;
+}
 
