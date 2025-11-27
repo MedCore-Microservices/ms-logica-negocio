@@ -9,6 +9,7 @@ const patientRoutes = require('./routes/patientRoutes');
 const medicalRecordRoutes = require('./routes/medicalRecordRoutes');
 const queueRoutes = require('./routes/queueRoutes');
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
+const medicalOrderRoutes = require('./routes/medicalOrderRoutes');
 const { PrismaClient } = require('@prisma/client');
 const documentRoutes = require('./routes/documentRoutes');
 const cors = require('cors');
@@ -46,6 +47,9 @@ app.use('/api/queue', queueRoutes);
 
 // Prescriptions
 app.use('/api/prescriptions', prescriptionRoutes);
+
+// Medical Orders (laboratory, etc.)
+app.use('/api/medical-orders', medicalOrderRoutes);
 
 // Rutas para historias clínicas
 app.use('/api/medical-records', medicalRecordRoutes);
