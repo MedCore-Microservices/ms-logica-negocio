@@ -1,6 +1,34 @@
 const prisma = require('../config/database');
 
 class PrescriptionService {
+  // Infer duration in days for a medication object or string
+  inferDuration(med) {
+    if (!med) return 7;
+    // Respect explicit duration fields if provided
+    if (med.durationDays || med.duration) return Number(med.durationDays || med.duration);
+
+    const raw = (med.name || med.type || med).toString().toLowerCase();
+
+    // Common heuristic rules by keyword matching
+    if (/amoxi|amoxicillin|cef|ceph|penicill|azithro|doxy|metronidazole|cipro|levo|erythro/.test(raw)) return 7;
+    if (/antifungal|fluconazol|itraconazol|miconazol|ketoconazol/.test(raw)) return 14;
+    if (/antiviral|acyclovir|oseltamivir|valaciclovir/.test(raw)) return 5;
+    if (/analgesic|ibuprofen|paracetamol|acetaminophen|naproxen|diclofenac/.test(raw)) return 5;
+    if (/inhal|nebul|inhaler|bronchodilat|salbutamol|salmeterol|budesonide/.test(raw)) return 30;
+    if (/insulin|metformin|glipizid|sitagliptin|antidiabetic|antidiab/.test(raw)) return 30;
+    if (/antihypertensive|lisinopril|enalapril|amlodipine|losartan|valsartan/.test(raw)) return 30;
+    if (/topical|cream|ointment|unguent|gel|locion|spray/.test(raw)) return 7;
+
+    // Type-based hints
+    if (med.type) {
+      const t = med.type.toString().toLowerCase();
+      if (t === 'chronic') return 30;
+      if (t === 'acute') return 7;
+    }
+
+    // Default fallback
+    return 7;
+  }
   async createPrescription({ doctorId, patientId, title, notes, medications }) {
     if (!doctorId || !patientId || !title || !medications) {
       const err = new Error('doctorId, patientId, title y medications son obligatorios');
@@ -44,6 +72,14 @@ class PrescriptionService {
       throw err;
     }
 
+    // Calcular duración de tratamiento por medicamento y normalizar estructura
+    const normalizedMeds = meds.map((m) => {
+      // Si viene como string, convertir a objeto simple
+      const medObj = (typeof m === 'string') ? { name: m } : Object.assign({}, m);
+      medObj.durationDays = this.inferDuration(medObj);
+      return medObj;
+    });
+
     // Crear prescripción
     const created = await prisma.prescription.create({
       data: {
@@ -51,7 +87,7 @@ class PrescriptionService {
         patientId: Number(patientId),
         title,
         notes: notes || null,
-        medications: meds
+        medications: normalizedMeds
       }
     });
 
@@ -60,13 +96,26 @@ class PrescriptionService {
 
   async getByPatient(patientId, options = {}) {
     const { limit = 50, offset = 0 } = options;
-    return prisma.prescription.findMany({
+    const items = await prisma.prescription.findMany({
       where: { patientId: Number(patientId) },
       orderBy: { createdAt: 'desc' },
       take: Number(limit),
       skip: Number(offset),
       include: { doctor: { select: { id: true, fullname: true } } }
     });
+
+    // Asegurar que cada medicamento tenga durationDays (no persiste en DB)
+    const normalized = items.map((presc) => {
+      const meds = Array.isArray(presc.medications) ? presc.medications : [];
+      const newMeds = meds.map((m) => {
+        const medObj = (typeof m === 'string') ? { name: m } : Object.assign({}, m);
+        if (!medObj.durationDays) medObj.durationDays = this.inferDuration(medObj);
+        return medObj;
+      });
+      return Object.assign({}, presc, { medications: newMeds });
+    });
+
+    return normalized;
   }
 
   // Verificar alergias del paciente contra una lista de medicamentos

@@ -14,4 +14,7 @@ router.get('/patient/:patientId', authenticate, controller.getByPatient);
 // Verificar alergias: body { patientId, medications }
 router.post('/check-allergies', authenticate, controller.checkAllergies);
 
+// Estimar duración del tratamiento para una lista de medicamentos (body.medications)
+router.post('/estimate-duration', authenticate, controller.estimateDuration);
+
 module.exports = router;

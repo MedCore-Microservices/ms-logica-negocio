@@ -107,4 +107,69 @@ async function checkAllergies(req, res) {
   }
 }
 
-module.exports = { create, getByPatient, checkAllergies };
+// POST /api/prescriptions/estimate-duration
+async function estimateDuration(req, res) {
+  try {
+    let medications = req.body.medications || req.body.meds || req.body.medication || req.body.medicamentos;
+    const persistFlag = (req.body.persist === true) || (String(req.query.persist || '').toLowerCase() === 'true');
+
+    if (typeof medications === 'string') {
+      try {
+        medications = JSON.parse(medications);
+      } catch (e) {
+        medications = medications.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+
+    if (!medications || (Array.isArray(medications) && medications.length === 0) || (!Array.isArray(medications))) {
+      if (medications && !Array.isArray(medications)) medications = [medications];
+    }
+
+    if (!medications || !Array.isArray(medications) || medications.length === 0) {
+      return res.status(400).json({ success: false, message: 'medications es requerido y debe ser un array no vacío' });
+    }
+
+    const results = medications.map((m) => {
+      const medObj = (typeof m === 'string') ? { name: m } : Object.assign({}, m);
+      const durationDays = service.inferDuration(medObj);
+      medObj.durationDays = durationDays;
+      return { medication: medObj, durationDays };
+    });
+
+    // Si no se pide persistencia, devolver solo la estimación
+    if (!persistFlag) {
+      return res.status(200).json({ success: true, data: results });
+    }
+
+    // Persistir la prescripción: validar permisos y datos requeridos
+    const user = req.user || {};
+    const role = (user.role || '').toUpperCase();
+
+    if (!['MEDICO', 'ADMINISTRADOR'].includes(role)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para persistir prescripciones' });
+    }
+
+    // doctorId: si es MEDICO tomar del token; si ADMIN, esperar doctorId en body
+    const doctorId = role === 'MEDICO' ? user.id : req.body.doctorId;
+    const patientId = req.body.patientId;
+    const title = req.body.title || `Prescripción - estimación`;
+    const notes = req.body.notes;
+
+    if (!doctorId) {
+      return res.status(400).json({ success: false, message: 'doctorId es requerido para persistir (o usar token de MEDICO)' });
+    }
+    if (!patientId) {
+      return res.status(400).json({ success: false, message: 'patientId es requerido para persistir' });
+    }
+
+    // Llamar al servicio de creación (este método normaliza y añade durationDays también)
+    const created = await service.createPrescription({ doctorId, patientId, title, notes, medications: medications });
+
+    return res.status(201).json({ success: true, data: created });
+  } catch (error) {
+    const status = error.status || 400;
+    return res.status(status).json({ success: false, message: error.message });
+  }
+}
+
+module.exports = { create, getByPatient, checkAllergies, estimateDuration };
