@@ -19,4 +19,7 @@ router.post(
   requireRole(['MEDICO', 'ENFERMERA', 'ADMINISTRADOR']),
   controller.createRadiologyOrder
 );
+
+// Obtener orden médica por id - autenticado (PACIENTE solo su propia orden)
+router.get('/:id', authenticate, controller.getOrder);
 module.exports = router;

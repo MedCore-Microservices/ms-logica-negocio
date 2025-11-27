@@ -82,6 +82,9 @@ async function createLaboratoryOrder(payload = {}, ctx = {}) {
     data: { medicalOrders: updatedOrders }
   });
 
+  // Intentar persistir también en la tabla `MedicalOrder` (si existe)
+  await persistOrderToTable(newOrder, medRecord.id);
+
   return newOrder;
 }
 
@@ -160,8 +163,82 @@ async function createRadiologyOrder(payload = {}, ctx = {}) {
     data: { medicalOrders: updatedOrders }
   });
 
+  // Intentar persistir también en la tabla `MedicalOrder` (si existe)
+  await persistOrderToTable(newOrder, medRecord.id);
+
   return newOrder;
 }
 
 module.exports = { createLaboratoryOrder, createRadiologyOrder };
+ 
+async function getOrderById(orderId) {
+  if (!orderId) {
+    const err = new Error('orderId es requerido');
+    err.status = 400;
+    throw err;
+  }
+  // Intentar primero buscar en la nueva tabla `MedicalOrder` si existe
+  try {
+    const dbOrder = await prisma.medicalOrder.findUnique({ where: { id: String(orderId) } });
+    if (dbOrder) {
+      return { order: dbOrder, medicalRecordId: dbOrder.medicalRecordId, patientId: dbOrder.patientId };
+    }
+  } catch (e) {
+    // Si la tabla no existe aún (antes de migrar), continuamos con búsqueda en JSON
+    // console.warn('[getOrderById] medicalOrder table not present or query failed', e.message);
+  }
+
+  // Fallback: buscar en las historias clínicas cargando todas y buscando en el JSON
+  const records = await prisma.medicalRecord.findMany();
+
+  for (const rec of records) {
+    let orders = rec.medicalOrders;
+    if (!orders) continue;
+
+    if (typeof orders === 'string') {
+      try {
+        orders = JSON.parse(orders);
+      } catch (e) {
+        orders = [orders];
+      }
+    }
+
+    if (!Array.isArray(orders)) orders = [orders];
+
+    const found = orders.find((o) => String(o.id) === String(orderId));
+    if (found) {
+      return { order: found, medicalRecordId: rec.id, patientId: rec.userId };
+    }
+  }
+
+  const err = new Error('Orden médica no encontrada');
+  err.status = 404;
+  throw err;
+}
+
+// Helper: crear fila en la tabla MedicalOrder para nuevas órdenes (si la tabla existe)
+async function persistOrderToTable(newOrder, medRecordId) {
+  try {
+    // Crear registro en la tabla `MedicalOrder` (si existe)
+    await prisma.medicalOrder.create({
+      data: {
+        id: String(newOrder.id),
+        type: newOrder.type,
+        patientId: Number(newOrder.patientId),
+        requestedBy: newOrder.requestedBy || null,
+        priority: newOrder.priority || 'routine',
+        clinicalNotes: newOrder.clinicalNotes || null,
+        tests: newOrder.tests || [],
+        status: newOrder.status || 'CREATED',
+        requestedAt: newOrder.requestedAt || new Date(),
+        medicalRecordId: medRecordId || null
+      }
+    });
+  } catch (e) {
+    // Si la tabla no existe aún o hay error, ignoramos para mantener compatibilidad
+    // console.warn('[persistOrderToTable] could not persist order:', e.message);
+  }
+}
+
+module.exports = { createLaboratoryOrder, createRadiologyOrder, getOrderById };
 

@@ -67,6 +67,9 @@ model User {
   // Prescripciones (relaciones nombradas para evitar ambigüedad)
   prescriptionsAsDoctor  Prescription[] @relation("PrescriptionDoctor")
   prescriptionsAsPatient Prescription[] @relation("PrescriptionPatient")
+  // Órdenes médicas (relaciones nombradas)
+  medicalOrdersAsPatient  MedicalOrder[] @relation("MedicalOrderPatient")
+  medicalOrdersRequested MedicalOrder[] @relation("MedicalOrderRequestedBy")
 }
 
 // AGREGAR ESTAS DOS NUEVAS RELACIONES para Diagnostic
@@ -153,6 +156,8 @@ model MedicalRecord {
 
   // Relación con las citas
   appointments Appointment[]
+  // Relación con la tabla de órdenes médicas (cuando se migre)
+  medicalOrdersTable MedicalOrder[] @relation("MedicalOrderMedicalRecord")
 }
 
 // ========================
@@ -237,5 +242,28 @@ model Prescription {
   patient User @relation("PrescriptionPatient", fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([doctorId, patientId])
+}
+
+// Nuevo modelo para órdenes médicas. Usamos `id` como string para mantener compatibilidad
+// con los identificadores actuales (p.ej. "labord-...", "radord-...").
+model MedicalOrder {
+  id              String   @id
+  type            String
+  patientId       Int
+  patient         User     @relation("MedicalOrderPatient", fields: [patientId], references: [id], onDelete: Cascade)
+  requestedBy     Int?
+  requestedByUser User?    @relation("MedicalOrderRequestedBy", fields: [requestedBy], references: [id], onDelete: SetNull)
+  priority        String
+  clinicalNotes   String?
+  tests           Json
+  status          String
+  requestedAt     DateTime
+  medicalRecordId Int?
+  medicalRecord   MedicalRecord? @relation("MedicalOrderMedicalRecord", fields: [medicalRecordId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([requestedBy])
 }
 

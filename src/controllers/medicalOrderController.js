@@ -75,3 +75,31 @@ async function createRadiologyOrder(req, res) {
 }
 
 module.exports = { createLaboratoryOrder, createRadiologyOrder };
+
+// GET /api/medical-orders/:id
+async function getOrder(req, res) {
+  try {
+    const user = req.user || {};
+    const role = (user.role || '').toUpperCase();
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'id de orden requerido' });
+    }
+
+    const result = await medicalOrderService.getOrderById(id);
+
+    // Permisos: PACIENTE solo puede ver sus propias órdenes
+    if (role === 'PACIENTE' && Number(user.id) !== Number(result.patientId)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para ver esta orden' });
+    }
+
+    return res.status(200).json({ success: true, data: result.order });
+  } catch (error) {
+    console.error('[getOrder] error:', error);
+    const status = error.status || 500;
+    return res.status(status).json({ success: false, message: error.message || 'Error interno' });
+  }
+}
+
+module.exports = { createLaboratoryOrder, createRadiologyOrder, getOrder };
