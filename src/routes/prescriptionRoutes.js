@@ -7,4 +7,8 @@ const router = express.Router();
 // Crear prescripción (solo MEDICO o ADMINISTRADOR)
 router.post('/', authenticate, requireRole(['MEDICO', 'ADMINISTRADOR']), controller.create);
 
+// Historial de prescripciones por paciente
+// Autenticado: paciente puede ver su propio historial; MEDICO/ADMINISTRADOR pueden ver cualquiera
+router.get('/patient/:patientId', authenticate, controller.getByPatient);
+
 module.exports = router;
