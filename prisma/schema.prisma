@@ -18,6 +18,27 @@ enum Role {
   PACIENTE
 }
 
+// Tipos de exámenes de laboratorio (plantillas de órdenes)
+model LabExamType {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  description String?
+  tests       Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Plantillas de exámenes de radiología
+model RadiologyExamType {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  description String?
+  procedures  Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
 // ========================
 // MODELS
 // ========================

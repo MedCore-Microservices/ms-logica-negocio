@@ -5,7 +5,8 @@
   "scripts": {
     "test": "cross-env NODE_ENV=test jest",
     "dev": "cross-env PORT=3002 nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "seed": "node prisma/seed.js"
   },
   "keywords": [],
   "author": "",

@@ -10,6 +10,8 @@ const medicalRecordRoutes = require('./routes/medicalRecordRoutes');
 const queueRoutes = require('./routes/queueRoutes');
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
 const medicalOrderRoutes = require('./routes/medicalOrderRoutes');
+const labExamTypeRoutes = require('./routes/labExamTypeRoutes');
+const radiologyExamTypeRoutes = require('./routes/radiologyExamTypeRoutes');
 const { PrismaClient } = require('@prisma/client');
 const documentRoutes = require('./routes/documentRoutes');
 const cors = require('cors');
@@ -50,6 +52,12 @@ app.use('/api/prescriptions', prescriptionRoutes);
 
 // Medical Orders (laboratory, etc.)
 app.use('/api/medical-orders', medicalOrderRoutes);
+
+// Plantillas de órdenes de laboratorio
+app.use('/api/lab-exam-types', labExamTypeRoutes);
+
+// Plantillas de exámenes de radiología
+app.use('/api/rad-exam-types', radiologyExamTypeRoutes);
 
 // Rutas para historias clínicas
 app.use('/api/medical-records', medicalRecordRoutes);
