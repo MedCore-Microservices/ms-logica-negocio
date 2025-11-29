@@ -36,4 +36,7 @@ router.get('/ticket/:tickedId/cancel', authenticate, controller.cancelTicket);
 // Cancelar un ticket (paciente puede cancelar su propio ticket)
 router.delete('/ticket/:ticketId/cancel', authenticate, controller.cancelTicket);
 
+// Obtener estadísticas de la cola (público para todos los autenticados)
+router.get('/doctor/:doctorId/stats', authenticate, controller.stats);
+
 module.exports = router;

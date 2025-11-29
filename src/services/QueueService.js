@@ -31,6 +31,15 @@ class QueueService {
       throw new Error('doctorId y patientId son obligatorios');
     }
 
+    // Verificar si la cola está llena (límite de 5 personas)
+    const queueStatus = await this.isQueueFull(doctorId);
+    if (queueStatus.isFull) {
+      const err = new Error('La cola está llena. Por favor intenta más tarde.');
+      err.code = 'QUEUE_FULL';
+      err.status = 429; // Too Many Requests
+      throw err;
+    }
+
     // Verificar si ya existe un ticket WAITING o CALLED para ese doctor/paciente
     const duplicate = await prisma.queueTicket.findFirst({
       where: {
@@ -228,6 +237,53 @@ class QueueService {
         doctor: { select: { id: true, fullname: true } }
       }
     });
+  }
+
+  async isQueueFull(doctorId){
+
+    const MAX_QUEUE_SIZE=5;
+
+    const count=await prisma.queueTicket.count({
+      where:{ 
+        doctorId: Number(doctorId), 
+        status: STATUS.WAITING 
+      },
+    });
+
+    return{
+      isFull: count>=MAX_QUEUE_SIZE,
+      currentCount: count,
+      maxCount: MAX_QUEUE_SIZE,
+      availableSlots: Math.max(0, MAX_QUEUE_SIZE-count)
+    };
+
+  }
+
+  
+  async getQueueStats(doctorId){
+
+    const MAX_QUEUE_SIZE=5;
+
+    const [waiting, called]=await Promise.all([
+      prisma.queueTicket.count({
+        where:{doctorId: Number(doctorId), status: STATUS.WAITING}
+      }),
+      prisma.queueTicket.findFirst({
+        where:{doctorId: Number(doctorId), status: STATUS.CALLED},
+        include:{
+          patient:{select:{id: true, fullname: true }},
+        }
+      })
+    ]);
+
+    return{
+      waiting,
+      maxCount: MAX_QUEUE_SIZE,
+      isFull: waiting >= MAX_QUEUE_SIZE,
+      availableSlots: Math.max(0, MAX_QUEUE_SIZE-waiting),
+      currentTicket: called
+    };
+  }
   }
 }
 
