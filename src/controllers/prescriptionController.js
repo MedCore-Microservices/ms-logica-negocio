@@ -212,47 +212,245 @@ async function generatePdf(req, res) {
     res.on('close', () => { console.log('[generatePdf] response closed by client'); });
     res.on('finish', () => { console.log('[generatePdf] response finished'); });
 
-    // Header
-    doc.fontSize(20).text('Prescripción Médica', { align: 'center' });
-    doc.moveDown();
+    // ========== DISEÑO MEJORADO DE RECETA MÉDICA ==========
+    const pageWidth = doc.page.width;
+    const pageHeight = doc.page.height;
+    const margin = 50;
+    const contentWidth = pageWidth - (margin * 2);
 
-    doc.fontSize(12).text(`ID: ${presc.id}`);
-    const createdAtText = presc.createdAt ? new Date(presc.createdAt).toLocaleString() : 'Sin fecha';
-    doc.text(`Fecha: ${createdAtText}`);
-    doc.moveDown();
+    // ENCABEZADO INSTITUCIONAL
+    doc.rect(margin, margin, contentWidth, 100).fillAndStroke('#0066cc', '#003d7a');
+    
+    doc.fillColor('#ffffff')
+       .fontSize(24)
+       .font('Helvetica-Bold')
+       .text('MEDCORE', margin + 20, margin + 20, { align: 'left' });
+    
+    doc.fontSize(10)
+       .font('Helvetica')
+       .text('Sistema de Gestión Médica', margin + 20, margin + 50)
+       .text('Av. Principal #123, Ciudad', margin + 20, margin + 65)
+       .text('Tel: (123) 456-7890 | medcore@salud.com', margin + 20, margin + 80);
 
-    doc.text(`Doctor: ${presc.doctor?.fullname || presc.doctorId || 'N/D'}`);
-    doc.text(`Paciente: ${presc.patient?.fullname || presc.patientId || 'N/D'}`);
-    doc.moveDown();
+    // Número de receta en la esquina superior derecha
+    doc.fontSize(12)
+       .font('Helvetica-Bold')
+       .text(`RECETA N° ${String(presc.id).padStart(8, '0')}`, pageWidth - margin - 150, margin + 30, { width: 140, align: 'right' });
 
+    doc.fillColor('#000000');
+    let yPos = margin + 120;
+
+    // TÍTULO DEL DOCUMENTO
+    doc.fontSize(20)
+       .font('Helvetica-Bold')
+       .fillColor('#003d7a')
+       .text('PRESCRIPCIÓN MÉDICA', margin, yPos, { width: contentWidth, align: 'center' });
+    
+    yPos += 40;
+
+    // INFORMACIÓN DEL MÉDICO
+    doc.roundedRect(margin, yPos, contentWidth / 2 - 10, 90, 5).fillAndStroke('#f0f8ff', '#0066cc');
+    doc.fillColor('#000000')
+       .fontSize(11)
+       .font('Helvetica-Bold')
+       .text('MÉDICO TRATANTE', margin + 10, yPos + 10);
+    
+    doc.fontSize(10)
+       .font('Helvetica')
+       .text(`Dr(a). ${presc.doctor?.fullname || 'N/D'}`, margin + 10, yPos + 28)
+       .text(`Registro Médico: ${presc.doctor?.licenseNumber || 'N/D'}`, margin + 10, yPos + 43)
+       .text(`Especialidad: ${presc.doctor?.specialization?.name || 'Medicina General'}`, margin + 10, yPos + 58);
+
+    // FECHA Y HORA
+    const createdAtText = presc.createdAt ? new Date(presc.createdAt).toLocaleDateString('es-ES', {
+      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    }) : 'Sin fecha';
+    
+    doc.roundedRect(pageWidth / 2 + 10, yPos, contentWidth / 2 - 10, 90, 5).fillAndStroke('#fff4e6', '#ff9800');
+    doc.fillColor('#000000')
+       .fontSize(11)
+       .font('Helvetica-Bold')
+       .text('FECHA DE EMISIÓN', pageWidth / 2 + 20, yPos + 10);
+    
+    doc.fontSize(10)
+       .font('Helvetica')
+       .text(createdAtText, pageWidth / 2 + 20, yPos + 35, { width: (contentWidth / 2) - 30 });
+
+    yPos += 110;
+
+    // INFORMACIÓN DEL PACIENTE
+    doc.roundedRect(margin, yPos, contentWidth, 110, 5).fillAndStroke('#f0fff0', '#00cc66');
+    doc.fillColor('#000000')
+       .fontSize(11)
+       .font('Helvetica-Bold')
+       .text('DATOS DEL PACIENTE', margin + 10, yPos + 10);
+    
+    const patient = presc.patient || {};
+    doc.fontSize(10)
+       .font('Helvetica')
+       .text(`Nombre: ${patient.fullname || 'N/D'}`, margin + 10, yPos + 30)
+       .text(`Documento: ${patient.identificationNumber || 'N/D'}`, margin + 10, yPos + 45)
+       .text(`Edad: ${patient.age || 'N/D'} años`, margin + 10, yPos + 60)
+       .text(`Género: ${patient.gender || 'N/D'}`, margin + 250, yPos + 60)
+       .text(`Tipo de Sangre: ${patient.bloodType || 'N/D'}`, margin + 400, yPos + 60);
+
+    if (patient.allergies) {
+      doc.fillColor('#cc0000')
+         .font('Helvetica-Bold')
+         .text(`⚠ ALERGIAS: ${patient.allergies}`, margin + 10, yPos + 80);
+      doc.fillColor('#000000');
+    }
+
+    yPos += 130;
+
+    // DIAGNÓSTICO
     if (presc.title) {
-      doc.fontSize(14).text(presc.title);
-      doc.moveDown();
+      doc.roundedRect(margin, yPos, contentWidth, 50, 5).fillAndStroke('#fffacd', '#ffd700');
+      doc.fillColor('#000000')
+         .fontSize(11)
+         .font('Helvetica-Bold')
+         .text('DIAGNÓSTICO / MOTIVO', margin + 10, yPos + 10);
+      
+      doc.fontSize(10)
+         .font('Helvetica')
+         .text(presc.title, margin + 10, yPos + 28, { width: contentWidth - 20 });
+      
+      yPos += 70;
     }
 
+    // INDICACIONES GENERALES
     if (presc.notes) {
-      doc.fontSize(12).text('Notas:');
-      doc.text(presc.notes);
-      doc.moveDown();
+      doc.roundedRect(margin, yPos, contentWidth, 60, 5).fillAndStroke('#f5f5f5', '#999999');
+      doc.fillColor('#000000')
+         .fontSize(11)
+         .font('Helvetica-Bold')
+         .text('INDICACIONES GENERALES', margin + 10, yPos + 10);
+      
+      doc.fontSize(9)
+         .font('Helvetica')
+         .text(presc.notes, margin + 10, yPos + 28, { width: contentWidth - 20, lineGap: 2 });
+      
+      yPos += 80;
     }
 
-    doc.fontSize(12).text('Medicamentos:');
-    doc.moveDown(0.5);
+    // MEDICAMENTOS PRESCRITOS
+    doc.fontSize(12)
+       .font('Helvetica-Bold')
+       .fillColor('#003d7a')
+       .text('MEDICAMENTOS PRESCRITOS', margin, yPos);
+    
+    yPos += 25;
+
     const meds = Array.isArray(presc.medications) ? presc.medications : [];
     if (meds.length === 0) {
-      doc.text('No hay medicamentos registrados.');
+      doc.fontSize(10).font('Helvetica').fillColor('#666666')
+         .text('No hay medicamentos registrados.', margin + 10, yPos);
+      yPos += 30;
     } else {
       meds.forEach((m, idx) => {
-      const medObj = (typeof m === 'string') ? { name: m } : m || {};
-      const name = medObj.name || JSON.stringify(medObj);
-      const dose = medObj.dose || medObj.dosage || '';
-      const duration = medObj.durationDays || medObj.duration || '';
-      let line = `${idx + 1}. ${name}`;
-      if (dose) line += ` - Dosificación: ${dose}`;
-      if (duration) line += ` - Duración: ${duration} días`;
-      doc.text(line);
+        const medObj = (typeof m === 'string') ? { name: m } : m || {};
+        const name = medObj.name || JSON.stringify(medObj);
+        const dose = medObj.dose || medObj.dosage || '';
+        const frequency = medObj.frequency || '';
+        const duration = medObj.durationDays || medObj.duration || '';
+        const instructions = medObj.instructions || '';
+
+        // Verificar si hay espacio suficiente, si no, nueva página
+        if (yPos > pageHeight - 250) {
+          doc.addPage();
+          yPos = margin + 50;
+        }
+
+        // Caja del medicamento
+        const boxHeight = instructions ? 95 : 75;
+        doc.roundedRect(margin, yPos, contentWidth, boxHeight, 3).fillAndStroke('#ffffff', '#0066cc');
+        
+        // Número del medicamento
+        doc.roundedRect(margin + 5, yPos + 5, 25, 25, 3).fillAndStroke('#0066cc', '#003d7a');
+        doc.fillColor('#ffffff')
+           .fontSize(14)
+           .font('Helvetica-Bold')
+           .text(`${idx + 1}`, margin + 12, yPos + 11);
+
+        // Nombre del medicamento
+        doc.fillColor('#000000')
+           .fontSize(11)
+           .font('Helvetica-Bold')
+           .text(name, margin + 40, yPos + 8, { width: contentWidth - 50 });
+
+        // Dosificación
+        if (dose) {
+          doc.fontSize(9)
+             .font('Helvetica')
+             .fillColor('#333333')
+             .text(`Dosis: ${dose}`, margin + 40, yPos + 28);
+        }
+
+        // Frecuencia
+        if (frequency) {
+          doc.text(`Frecuencia: ${frequency}`, margin + 40, yPos + 43);
+        }
+
+        // Duración
+        if (duration) {
+          doc.text(`Duración: ${duration} días`, margin + 40, yPos + 58);
+        }
+
+        // Instrucciones especiales
+        if (instructions) {
+          doc.roundedRect(margin + 40, yPos + 70, contentWidth - 50, 20, 2).fillAndStroke('#fffacd', '#ffd700');
+          doc.fillColor('#000000')
+             .fontSize(8)
+             .font('Helvetica-Oblique')
+             .text(`→ ${instructions}`, margin + 45, yPos + 75, { width: contentWidth - 60 });
+        }
+
+        yPos += boxHeight + 10;
       });
     }
+
+    // Verificar espacio para footer
+    if (yPos > pageHeight - 200) {
+      doc.addPage();
+      yPos = margin + 50;
+    }
+
+    yPos += 20;
+
+    // RECOMENDACIONES GENERALES
+    doc.fontSize(9)
+       .font('Helvetica-Oblique')
+       .fillColor('#666666')
+       .text('• Siga estrictamente las indicaciones médicas', margin, yPos)
+       .text('• No suspenda el tratamiento sin consultar a su médico', margin, yPos + 15)
+       .text('• Consulte inmediatamente si presenta efectos adversos', margin, yPos + 30)
+       .text('• Esta receta tiene validez de 30 días desde su emisión', margin, yPos + 45);
+
+    yPos += 75;
+
+    // FIRMA DEL MÉDICO
+    doc.moveTo(margin + 300, yPos).lineTo(pageWidth - margin - 50, yPos).stroke('#000000');
+    doc.fontSize(10)
+       .font('Helvetica-Bold')
+       .fillColor('#000000')
+       .text('Firma y Sello del Médico', margin + 300, yPos + 10, { width: pageWidth - margin - 350, align: 'center' });
+    
+    doc.fontSize(9)
+       .font('Helvetica')
+       .text(`Dr(a). ${presc.doctor?.fullname || 'N/D'}`, margin + 300, yPos + 28, { width: pageWidth - margin - 350, align: 'center' })
+       .text(`Reg. Médico: ${presc.doctor?.licenseNumber || 'N/D'}`, margin + 300, yPos + 43, { width: pageWidth - margin - 350, align: 'center' });
+
+    // PIE DE PÁGINA
+    doc.fontSize(8)
+       .font('Helvetica')
+       .fillColor('#999999')
+       .text(`Documento generado electrónicamente por MedCore - ${new Date().toLocaleString('es-ES')}`, 
+             margin, pageHeight - margin - 20, 
+             { width: contentWidth, align: 'center' });
+    
+    doc.text(`Prescripción ID: ${presc.id} | Válida hasta: ${new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('es-ES')}`,
+             margin, pageHeight - margin - 10,
+             { width: contentWidth, align: 'center' });
 
     // Asegurar que cerramos el documento y manejamos errores del stream
     // Escribir también una copia local temporal y acumular en memoria
