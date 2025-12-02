@@ -276,7 +276,7 @@ class QueueService {
       currentTicket: called
     };
   }
-  }
 }
+
 
 module.exports = QueueService;
