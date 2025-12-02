@@ -129,4 +129,20 @@ async function getOrdersByPatient(req, res) {
   }
 }
 
-module.exports = { createLaboratoryOrder, createRadiologyOrder, getOrder, getOrdersByPatient };
+// GET /api/medical-orders
+async function getAllOrders(req, res) {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
+    const offset = req.query.offset ? parseInt(req.query.offset, 10) : 0;
+    const type = req.query.type; // 'laboratory' o 'radiology', opcional
+
+    const data = await medicalOrderService.getAllOrders({ limit, offset, type });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('[getAllOrders] error:', error);
+    const status = error.status || 500;
+    return res.status(status).json({ success: false, message: error.message || 'Error interno' });
+  }
+}
+
+module.exports = { createLaboratoryOrder, createRadiologyOrder, getOrder, getOrdersByPatient, getAllOrders };

@@ -31,15 +31,6 @@ class QueueService {
       throw new Error('doctorId y patientId son obligatorios');
     }
 
-    // Verificar si la cola está llena (límite de 5 personas)
-    const queueStatus = await this.isQueueFull(doctorId);
-    if (queueStatus.isFull) {
-      const err = new Error('La cola está llena. Por favor intenta más tarde.');
-      err.code = 'QUEUE_FULL';
-      err.status = 429; // Too Many Requests
-      throw err;
-    }
-
     // Verificar si ya existe un ticket WAITING o CALLED para ese doctor/paciente
     const duplicate = await prisma.queueTicket.findFirst({
       where: {
@@ -51,6 +42,7 @@ class QueueService {
     });
     if (duplicate) {
       const err = new Error('Ya tienes un turno activo o en espera con este médico');
+      const err2 = new Error('Ya tiene un turno activo o en espera con este medico')
       err.code = 'DUPLICATE_QUEUE';
       err.status = 409;
       throw err;
@@ -285,6 +277,6 @@ class QueueService {
     };
   }
   }
-
+}
 
 module.exports = QueueService;

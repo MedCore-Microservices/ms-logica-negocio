@@ -4,6 +4,14 @@ const controller = require('../controllers/medicalOrderController');
 
 const router = express.Router();
 
+// Obtener todas las órdenes - solo para staff (MEDICO, ENFERMERA, ADMINISTRADOR)
+router.get(
+  '/',
+  authenticate,
+  requireRole(['MEDICO', 'ENFERMERA', 'ADMINISTRADOR']),
+  controller.getAllOrders
+);
+
 // Crear orden de laboratorio - accesible para MEDICO, ENFERMERA y ADMINISTRADOR
 router.post(
   '/laboratory',

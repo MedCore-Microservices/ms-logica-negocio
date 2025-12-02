@@ -43,15 +43,58 @@ async function createLaboratoryOrder(payload = {}, ctx = {}) {
   const orderId = genId('labord');
   const now = new Date();
 
-  const tests = (Array.isArray(requestedTests) ? requestedTests : []).map((t) => ({
-    id: genId('t'),
-    testCode: t.testCode || t.code || null,
-    name: t.name || t.testName || null,
-    specimen: t.specimen || null,
-    notes: t.notes || null,
-    status: 'PENDING',
-    createdAt: now
-  }));
+  // Enriquecer los tests con información de la base de datos
+  const enrichedTests = [];
+  for (const t of (Array.isArray(requestedTests) ? requestedTests : [])) {
+    const testCode = t.testCode || t.code || t;
+    let testInfo = { testCode };
+    
+    // Buscar información del examen en la tabla LabExamType
+    try {
+      const examType = await prisma.labExamType.findFirst({
+        where: { code: String(testCode) }
+      });
+      if (examType) {
+        testInfo = {
+          id: genId('t'),
+          testCode: examType.code,
+          name: examType.name,
+          description: examType.description,
+          specimen: t.specimen || null,
+          notes: t.notes || null,
+          status: 'PENDING',
+          createdAt: now
+        };
+      } else {
+        // Si no se encuentra, usar la info proporcionada
+        testInfo = {
+          id: genId('t'),
+          testCode,
+          name: t.name || t.testName || `Examen ${testCode}`,
+          description: t.description || null,
+          specimen: t.specimen || null,
+          notes: t.notes || null,
+          status: 'PENDING',
+          createdAt: now
+        };
+      }
+    } catch (e) {
+      // Fallback si hay error
+      testInfo = {
+        id: genId('t'),
+        testCode,
+        name: t.name || t.testName || `Examen ${testCode}`,
+        description: t.description || null,
+        specimen: t.specimen || null,
+        notes: t.notes || null,
+        status: 'PENDING',
+        createdAt: now
+      };
+    }
+    enrichedTests.push(testInfo);
+  }
+
+  const tests = enrichedTests;
 
   const newOrder = {
     id: orderId,
@@ -126,18 +169,64 @@ async function createRadiologyOrder(payload = {}, ctx = {}) {
   const orderId = genId('radord');
   const now = new Date();
 
-  // Para radiología, incluir campos típicos: modality, bodyPart, laterality
-  const tests = (Array.isArray(requestedTests) ? requestedTests : []).map((t) => ({
-    id: genId('t'),
-    testCode: t.testCode || t.code || null,
-    name: t.name || t.testName || null,
-    modality: t.modality || t.type || null,
-    bodyPart: t.bodyPart || t.region || null,
-    laterality: t.laterality || null,
-    notes: t.notes || null,
-    status: 'SCHEDULED',
-    createdAt: now
-  }));
+  // Enriquecer los tests de radiología con información de la base de datos
+  const enrichedTests = [];
+  for (const t of (Array.isArray(requestedTests) ? requestedTests : [])) {
+    const testCode = t.testCode || t.code || t;
+    let testInfo = { testCode };
+    
+    // Buscar información del examen en la tabla RadiologyExamType
+    try {
+      const examType = await prisma.radiologyExamType.findFirst({
+        where: { code: String(testCode) }
+      });
+      if (examType) {
+        testInfo = {
+          id: genId('t'),
+          testCode: examType.code,
+          name: examType.name,
+          description: examType.description,
+          modality: t.modality || t.type || null,
+          bodyPart: t.bodyPart || t.region || null,
+          laterality: t.laterality || null,
+          notes: t.notes || null,
+          status: 'SCHEDULED',
+          createdAt: now
+        };
+      } else {
+        // Si no se encuentra, usar la info proporcionada
+        testInfo = {
+          id: genId('t'),
+          testCode,
+          name: t.name || t.testName || `Examen ${testCode}`,
+          description: t.description || null,
+          modality: t.modality || t.type || null,
+          bodyPart: t.bodyPart || t.region || null,
+          laterality: t.laterality || null,
+          notes: t.notes || null,
+          status: 'SCHEDULED',
+          createdAt: now
+        };
+      }
+    } catch (e) {
+      // Fallback si hay error
+      testInfo = {
+        id: genId('t'),
+        testCode,
+        name: t.name || t.testName || `Examen ${testCode}`,
+        description: t.description || null,
+        modality: t.modality || t.type || null,
+        bodyPart: t.bodyPart || t.region || null,
+        laterality: t.laterality || null,
+        notes: t.notes || null,
+        status: 'SCHEDULED',
+        createdAt: now
+      };
+    }
+    enrichedTests.push(testInfo);
+  }
+
+  const tests = enrichedTests;
 
   const newOrder = {
     id: orderId,
@@ -234,11 +323,68 @@ async function persistOrderToTable(newOrder, medRecordId) {
     });
   } catch (e) {
     // Si la tabla no existe aún o hay error, ignoramos para mantener compatibilidad
-    // console.warn('[persistOrderToTable] could not persist order:', e.message);
+    console.warn('[persistOrderToTable] could not persist order:', e.message);
   }
 }
 
-module.exports = { createLaboratoryOrder, createRadiologyOrder, getOrderById, getOrdersByPatient };
+// Helper: enriquecer tests con información de la BD (para órdenes antiguas)
+async function enrichOrderTests(order) {
+  if (!order || !Array.isArray(order.tests) || order.tests.length === 0) {
+    return order;
+  }
+
+  const enrichedTests = [];
+  const isLaboratory = order.type === 'laboratory';
+  
+  for (const test of order.tests) {
+    // Si ya tiene nombre, no hacer nada
+    if (test.name && test.name !== 'Examen sin nombre') {
+      enrichedTests.push(test);
+      continue;
+    }
+
+    const testCode = test.testCode || test.code;
+    if (!testCode) {
+      enrichedTests.push({ ...test, name: 'Examen sin código' });
+      continue;
+    }
+
+    try {
+      if (isLaboratory) {
+        const examType = await prisma.labExamType.findFirst({
+          where: { code: String(testCode) }
+        });
+        if (examType) {
+          enrichedTests.push({
+            ...test,
+            name: examType.name,
+            description: examType.description || test.description
+          });
+          continue;
+        }
+      } else {
+        const examType = await prisma.radiologyExamType.findFirst({
+          where: { code: String(testCode) }
+        });
+        if (examType) {
+          enrichedTests.push({
+            ...test,
+            name: examType.name,
+            description: examType.description || test.description
+          });
+          continue;
+        }
+      }
+    } catch (e) {
+      console.warn('[enrichOrderTests] Error enriching test:', e.message);
+    }
+
+    // Si no se encontró, usar el código como nombre
+    enrichedTests.push({ ...test, name: `Examen ${testCode}` });
+  }
+
+  return { ...order, tests: enrichedTests };
+}
 
 async function getOrdersByPatient(patientId, opts = {}) {
   if (!patientId) {
@@ -256,19 +402,78 @@ async function getOrdersByPatient(patientId, opts = {}) {
       where: { patientId: Number(patientId) },
       orderBy: { createdAt: 'desc' },
       take: limit,
-      skip: offset
+      skip: offset,
+      include: {
+        patient: {
+          select: {
+            id: true,
+            fullname: true,
+            identificationNumber: true,
+            email: true
+          }
+        },
+        requestedByUser: {
+          select: {
+            id: true,
+            fullname: true,
+            role: true
+          }
+        }
+      }
     });
 
     if (dbOrders && dbOrders.length > 0) {
-      return dbOrders;
+      // Enriquecer tests con información de la BD
+      const enrichedOrders = await Promise.all(
+        dbOrders.map(order => enrichOrderTests(order))
+      );
+      return enrichedOrders;
     }
   } catch (e) {
     // Si falla (tabla no existe), caeremos al fallback
   }
 
   // Fallback: buscar en medicalRecord.medicalOrders (JSON)
-  const records = await prisma.medicalRecord.findMany({ where: { userId: Number(patientId) }, orderBy: { createdAt: 'desc' } });
+  const records = await prisma.medicalRecord.findMany({ 
+    where: { userId: Number(patientId) }, 
+    orderBy: { createdAt: 'desc' },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullname: true,
+          identificationNumber: true,
+          email: true
+        }
+      }
+    }
+  });
   const allOrders = [];
+
+  // Obtener IDs únicos de doctores para consultar después
+  const doctorIds = new Set();
+  for (const rec of records) {
+    let orders = rec.medicalOrders;
+    if (!orders) continue;
+    if (typeof orders === 'string') {
+      try { orders = JSON.parse(orders); } catch (e) { orders = [orders]; }
+    }
+    if (!Array.isArray(orders)) orders = [orders];
+    for (const o of orders) {
+      if (o.requestedBy) doctorIds.add(Number(o.requestedBy));
+    }
+  }
+
+  // Consultar información de doctores
+  const doctors = await prisma.user.findMany({
+    where: { id: { in: Array.from(doctorIds) } },
+    select: {
+      id: true,
+      fullname: true,
+      role: true
+    }
+  });
+  const doctorMap = new Map(doctors.map(d => [d.id, d]));
 
   for (const rec of records) {
     let orders = rec.medicalOrders;
@@ -280,7 +485,131 @@ async function getOrdersByPatient(patientId, opts = {}) {
     if (!Array.isArray(orders)) orders = [orders];
 
     for (const o of orders) {
-      allOrders.push({ ...o, medicalRecordId: rec.id, patientId: rec.userId });
+      allOrders.push({ 
+        ...o, 
+        medicalRecordId: rec.id, 
+        patientId: rec.userId,
+        patient: rec.user,
+        requestedByUser: o.requestedBy ? doctorMap.get(Number(o.requestedBy)) : null
+      });
+    }
+  }
+
+  // ordenar por createdAt si existe
+  allOrders.sort((a, b) => {
+    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return tb - ta;
+  });
+
+  // aplicar paginación
+}
+
+
+// GET ALL ORDERS (para doctores/administradores)
+async function getAllOrders(opts = {}) {
+  const limit = opts.limit ? Number(opts.limit) : 50;
+  const offset = opts.offset ? Number(opts.offset) : 0;
+  const type = opts.type; // 'laboratory' o 'radiology', opcional
+
+  // Intentar obtener desde la tabla MedicalOrder si existe
+  try {
+    const where = type ? { type } : {};
+    const dbOrders = await prisma.medicalOrder.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+      include: {
+        patient: {
+          select: {
+            id: true,
+            fullname: true,
+            identificationNumber: true,
+            email: true
+          }
+        },
+        requestedByUser: {
+          select: {
+            id: true,
+            fullname: true,
+            role: true
+          }
+        }
+      }
+    });
+
+    if (dbOrders && dbOrders.length > 0) {
+      // Enriquecer tests con información de la BD
+      const enrichedOrders = await Promise.all(
+        dbOrders.map(order => enrichOrderTests(order))
+      );
+      return enrichedOrders;
+    }
+  } catch (e) {
+    console.warn('[getAllOrders] Could not fetch from MedicalOrder table:', e.message);
+  }
+
+  // Fallback: buscar en medicalRecord.medicalOrders (JSON) - todas las órdenes
+  const records = await prisma.medicalRecord.findMany({ 
+    orderBy: { createdAt: 'desc' },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullname: true,
+          identificationNumber: true,
+          email: true
+        }
+      }
+    }
+  });
+  
+  const allOrders = [];
+
+  // Obtener IDs únicos de doctores para consultar después
+  const doctorIds = new Set();
+  for (const rec of records) {
+    let orders = rec.medicalOrders;
+    if (!orders) continue;
+    if (typeof orders === 'string') {
+      try { orders = JSON.parse(orders); } catch (e) { orders = [orders]; }
+    }
+    if (!Array.isArray(orders)) orders = [orders];
+    for (const o of orders) {
+      if (o.requestedBy) doctorIds.add(Number(o.requestedBy));
+    }
+  }
+
+  // Consultar información de doctores
+  const doctors = await prisma.user.findMany({
+    where: { id: { in: Array.from(doctorIds) } },
+    select: {
+      id: true,
+      fullname: true,
+      role: true
+    }
+  });
+  const doctorMap = new Map(doctors.map(d => [d.id, d]));
+
+  for (const rec of records) {
+    let orders = rec.medicalOrders;
+    if (!orders) continue;
+
+    if (typeof orders === 'string') {
+      try { orders = JSON.parse(orders); } catch (e) { orders = [orders]; }
+    }
+    if (!Array.isArray(orders)) orders = [orders];
+
+    for (const o of orders) {
+      if (type && o.type !== type) continue; // Filtrar por tipo si se especifica
+      allOrders.push({ 
+        ...o, 
+        medicalRecordId: rec.id, 
+        patientId: rec.userId,
+        patient: rec.user,
+        requestedByUser: o.requestedBy ? doctorMap.get(Number(o.requestedBy)) : null
+      });
     }
   }
 
@@ -293,6 +622,19 @@ async function getOrdersByPatient(patientId, opts = {}) {
 
   // aplicar paginación
   const paged = allOrders.slice(offset, offset + limit);
-  return paged;
+  
+  // Enriquecer tests con información de la BD
+  const enrichedPaged = await Promise.all(
+    paged.map(order => enrichOrderTests(order))
+  );
+  
+  return enrichedPaged;
 }
 
+module.exports = { 
+  createLaboratoryOrder, 
+  createRadiologyOrder, 
+  getOrderById, 
+  getOrdersByPatient,
+  getAllOrders 
+};
