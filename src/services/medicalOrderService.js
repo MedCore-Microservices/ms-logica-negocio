@@ -511,10 +511,14 @@ async function getAllOrders(opts = {}) {
   const limit = opts.limit ? Number(opts.limit) : 50;
   const offset = opts.offset ? Number(opts.offset) : 0;
   const type = opts.type; // 'laboratory' o 'radiology', opcional
+  const requestedBy = opts.requestedBy; // Filtrar por médico si se proporciona
 
   // Intentar obtener desde la tabla MedicalOrder si existe
   try {
-    const where = type ? { type } : {};
+    const where = {};
+    if (type) where.type = type;
+    if (requestedBy) where.requestedBy = Number(requestedBy);
+    
     const dbOrders = await prisma.medicalOrder.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -603,6 +607,7 @@ async function getAllOrders(opts = {}) {
 
     for (const o of orders) {
       if (type && o.type !== type) continue; // Filtrar por tipo si se especifica
+      if (requestedBy && Number(o.requestedBy) !== Number(requestedBy)) continue; // Filtrar por médico si se especifica
       allOrders.push({ 
         ...o, 
         medicalRecordId: rec.id, 
