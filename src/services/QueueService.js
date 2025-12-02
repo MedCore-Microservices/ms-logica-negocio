@@ -285,6 +285,6 @@ class QueueService {
     };
   }
   }
-}
+
 
 module.exports = QueueService;
