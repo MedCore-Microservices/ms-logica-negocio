@@ -1,0 +1,614 @@
+openapi: 3.0.3
+info:
+  title: ms-business API (Unified) 
+  version: '1.0.0'
+  description: Unified OpenAPI spec that combines Prescription, Medical Orders, Order Templates and Clinical Workflow endpoints (Sprint 5)
+servers:
+  - url: http://localhost:3002
+tags:
+  - name: Prescriptions
+    description: Operaciones sobre prescripciones médicas
+  - name: MedicalOrders
+    description: Crear y consultar órdenes médicas
+  - name: OrderTemplates
+    description: Plantillas (lab / radiology)
+  - name: ClinicalWorkflow
+    description: Cola y flujo clínico por doctor
+paths:
+  /api/prescriptions:
+    post:
+      tags: [Prescriptions]
+      summary: Crear una prescripción
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionCreate'
+      responses:
+        '201':
+          description: Prescripción creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCreated'
+        '400':
+          description: Bad request
+
+  /api/prescriptions/patient/{patientId}:
+    get:
+      tags: [Prescriptions]
+      summary: Obtener historial de prescripciones por paciente
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista de prescripciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseList'
+
+  /api/prescriptions/{id}/pdf:
+    get:
+      tags: [Prescriptions]
+      summary: Descargar PDF de una prescripción por id
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: PDF file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Not found
+
+  /api/prescriptions/check-allergies:
+    post:
+      tags: [Prescriptions]
+      summary: Verificar alergias para un paciente y lista de medicamentos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                patientId:
+                  type: integer
+                medications:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Medication'
+      responses:
+        '200':
+          description: Resultado de verificación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+
+  /api/prescriptions/estimate-duration:
+    post:
+      tags: [Prescriptions]
+      summary: Estimar duración de tratamiento para medicamentos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: persist
+          in: query
+          schema:
+            type: boolean
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                medications:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Medication'
+                persist:
+                  type: boolean
+      responses:
+        '200':
+          description: Estimaciones devueltas
+        '201':
+          description: Prescripción creada (si persist=true)
+
+  /api/medical-orders/laboratory:
+    post:
+      tags: [MedicalOrders]
+      summary: Crear orden de laboratorio
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LaboratoryOrderCreate'
+      responses:
+        '201':
+          description: Orden creada
+
+  /api/medical-orders/radiology:
+    post:
+      tags: [MedicalOrders]
+      summary: Crear orden de radiología
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RadiologyOrderCreate'
+      responses:
+        '201':
+          description: Orden creada
+
+  /api/medical-orders/{id}:
+    get:
+      tags: [MedicalOrders]
+      summary: Obtener orden médica por id
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Orden encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiOrderResponse'
+        '404':
+          description: No encontrada
+
+  /api/medical-orders/patient/{patientId}:
+    get:
+      tags: [MedicalOrders]
+      summary: Obtener órdenes de un paciente (paginadas)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista paginada de órdenes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MedicalOrder'
+
+  /api/lab-exam-types:
+    get:
+      tags: [OrderTemplates]
+      summary: Listar plantillas de órdenes de laboratorio
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de plantillas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LabExamType'
+
+  /api/lab-exam-types/{code}:
+    get:
+      tags: [OrderTemplates]
+      summary: Obtener plantilla de laboratorio por código
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Plantilla encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabExamType'
+
+  /api/rad-exam-types:
+    get:
+      tags: [OrderTemplates]
+      summary: Listar plantillas de radiología
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de plantillas
+
+  /api/rad-exam-types/{code}:
+    get:
+      tags: [OrderTemplates]
+      summary: Obtener plantilla de radiología por código
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Plantilla encontrada
+
+  /api/queue/doctor/{doctorId}/current:
+    get:
+      tags: [ClinicalWorkflow]
+      summary: Obtener el paciente actual que está siendo atendido por el doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doctorId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paciente actual atendido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/QueueEntry'
+        '404':
+          description: No hay paciente actualmente
+
+  /api/queue/doctor/{doctorId}/confirmed:
+    get:
+      tags: [ClinicalWorkflow]
+      summary: Listar citas confirmadas por doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doctorId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista de citas confirmadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Appointment'
+
+  /api/queue/doctor/{doctorId}/history:
+    get:
+      tags: [ClinicalWorkflow]
+      summary: Historial de pacientes atendidos por el doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doctorId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Historial paginado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueueEntry'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Medication:
+      type: object
+      properties:
+        name:
+          type: string
+        dose:
+          type: string
+        frequency:
+          type: string
+        durationDays:
+          type: integer
+        instructions:
+          type: string
+
+    PrescriptionCreate:
+      type: object
+      required: [patientId]
+      properties:
+        doctorId:
+          type: integer
+        patientId:
+          type: integer
+        title:
+          type: string
+        notes:
+          type: string
+        medications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Medication'
+
+    Prescription:
+      type: object
+      properties:
+        id:
+          type: integer
+        doctorId:
+          type: integer
+        patientId:
+          type: integer
+        medications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Medication'
+        createdAt:
+          type: string
+          format: date-time
+
+    ApiResponseCreated:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Prescription'
+
+    ApiResponseList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prescription'
+
+    RequestedTest:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        details:
+          type: string
+
+    LaboratoryOrderCreate:
+      type: object
+      required: [patientId, requestedTests]
+      properties:
+        patientId:
+          type: integer
+        requestedBy:
+          type: integer
+        priority:
+          type: string
+          enum: [routine, urgent, stat]
+        clinicalNotes:
+          type: string
+        requestedTests:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestedTest'
+        requestedAt:
+          type: string
+          format: date-time
+
+    RadiologyOrderCreate:
+      type: object
+      required: [patientId, requestedTests]
+      properties:
+        patientId:
+          type: integer
+        requestedBy:
+          type: integer
+        priority:
+          type: string
+        clinicalNotes:
+          type: string
+        requestedTests:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestedTest'
+
+    MedicalOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+        patientId:
+          type: integer
+        requestedBy:
+          type: integer
+        priority:
+          type: string
+        requestedTests:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestedTest'
+        clinicalNotes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ApiOrderResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/MedicalOrder'
+
+    LabExamType:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+              name:
+                type: string
+              specimen:
+                type: string
+
+    PatientShort:
+      type: object
+      properties:
+        id:
+          type: integer
+        fullname:
+          type: string
+        identificationNumber:
+          type: string
+        age:
+          type: integer
+
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: integer
+        patientId:
+          type: integer
+        doctorId:
+          type: integer
+        scheduledAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    QueueEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        appointment:
+          $ref: '#/components/schemas/Appointment'
+        patient:
+          $ref: '#/components/schemas/PatientShort'
+        arrivedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time

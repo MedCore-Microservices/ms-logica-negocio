@@ -1,0 +1,219 @@
+openapi: 3.0.3
+info:
+  title: Prescription Service - ms-business
+  version: '1.0.0'
+  description: API documentation for Prescription endpoints (Sprint 5)
+servers:
+  - url: http://localhost:3002
+tags:
+  - name: Prescriptions
+    description: Operaciones sobre prescripciones médicas
+paths:
+  /api/prescriptions:
+    post:
+      tags: [Prescriptions]
+      summary: Crear una prescripción
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionCreate'
+      responses:
+        '201':
+          description: Prescripción creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCreated'
+        '400':
+          description: Bad request
+
+  /api/prescriptions/patient/{patientId}:
+    get:
+      tags: [Prescriptions]
+      summary: Obtener historial de prescripciones por paciente
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista de prescripciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseList'
+
+  /api/prescriptions/{id}/pdf:
+    get:
+      tags: [Prescriptions]
+      summary: Descargar PDF de una prescripción por id
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: PDF file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Not found
+
+  /api/prescriptions/check-allergies:
+    post:
+      tags: [Prescriptions]
+      summary: Verificar alergias para un paciente y lista de medicamentos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                patientId:
+                  type: integer
+                medications:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Medication'
+      responses:
+        '200':
+          description: Resultado de verificación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+
+  /api/prescriptions/estimate-duration:
+    post:
+      tags: [Prescriptions]
+      summary: Estimar duración de tratamiento para medicamentos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: persist
+          in: query
+          schema:
+            type: boolean
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                medications:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Medication'
+                persist:
+                  type: boolean
+      responses:
+        '200':
+          description: Estimaciones devueltas
+        '201':
+          description: Prescripción creada (si persist=true)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Medication:
+      type: object
+      properties:
+        name:
+          type: string
+        dose:
+          type: string
+        frequency:
+          type: string
+        durationDays:
+          type: integer
+        instructions:
+          type: string
+
+    PrescriptionCreate:
+      type: object
+      required: [patientId]
+      properties:
+        doctorId:
+          type: integer
+        patientId:
+          type: integer
+        title:
+          type: string
+        notes:
+          type: string
+        medications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Medication'
+
+    Prescription:
+      type: object
+      properties:
+        id:
+          type: integer
+        doctorId:
+          type: integer
+        patientId:
+          type: integer
+        medications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Medication'
+        createdAt:
+          type: string
+          format: date-time
+
+    ApiResponseCreated:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Prescription'
+
+    ApiResponseList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prescription'

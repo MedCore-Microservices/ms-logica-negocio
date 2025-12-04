@@ -39,6 +39,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// Swagger/OpenAPI docs
+try {
+  const { setupSwagger } = require('./swagger');
+  setupSwagger(app);
+} catch (e) {
+  console.warn('Swagger setup skipped:', e.message);
+}
+
 // Rutas
 app.use('/api/diagnostics', diagnosticRoutes);
 app.use('/api/appointments', appointmentRoutes);

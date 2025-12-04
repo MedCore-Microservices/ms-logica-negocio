@@ -1,0 +1,101 @@
+openapi: 3.0.3
+info:
+  title: Order Templates - ms-business
+  version: '1.0.0'
+  description: Plantillas de órdenes de laboratorio y radiología
+servers:
+  - url: http://localhost:3002
+tags:
+  - name: OrderTemplates
+    description: Plantillas (lab / radiology)
+paths:
+  /api/lab-exam-types:
+    get:
+      tags: [OrderTemplates]
+      summary: Listar plantillas de órdenes de laboratorio
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de plantillas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LabExamType'
+
+  /api/lab-exam-types/{code}:
+    get:
+      tags: [OrderTemplates]
+      summary: Obtener plantilla de laboratorio por código
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Plantilla encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabExamType'
+
+  /api/rad-exam-types:
+    get:
+      tags: [OrderTemplates]
+      summary: Listar plantillas de radiología
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de plantillas
+
+  /api/rad-exam-types/{code}:
+    get:
+      tags: [OrderTemplates]
+      summary: Obtener plantilla de radiología por código
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Plantilla encontrada
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LabExamType:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+              name:
+                type: string
+              specimen:
+                type: string

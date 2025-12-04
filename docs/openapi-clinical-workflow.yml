@@ -1,0 +1,158 @@
+openapi: 3.0.3
+info:
+  title: Clinical Workflow Service - ms-business
+  version: '1.0.0'
+  description: Endpoints para gestión de flujo clínico (cola/citas)
+servers:
+  - url: http://localhost:3002
+tags:
+  - name: ClinicalWorkflow
+    description: Cola y flujo clínico por doctor
+paths:
+  /api/queue/doctor/{doctorId}/current:
+    get:
+      tags: [ClinicalWorkflow]
+      summary: Obtener el paciente actual que está siendo atendido por el doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doctorId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paciente actual atendido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/QueueEntry'
+        '404':
+          description: No hay paciente actualmente
+
+  /api/queue/doctor/{doctorId}/confirmed:
+    get:
+      tags: [ClinicalWorkflow]
+      summary: Listar citas confirmadas por doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doctorId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista de citas confirmadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Appointment'
+
+  /api/queue/doctor/{doctorId}/history:
+    get:
+      tags: [ClinicalWorkflow]
+      summary: Historial de pacientes atendidos por el doctor
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doctorId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Historial paginado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueueEntry'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    PatientShort:
+      type: object
+      properties:
+        id:
+          type: integer
+        fullname:
+          type: string
+        identificationNumber:
+          type: string
+        age:
+          type: integer
+
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: integer
+        patientId:
+          type: integer
+        doctorId:
+          type: integer
+        scheduledAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    QueueEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        appointment:
+          $ref: '#/components/schemas/Appointment'
+        patient:
+          $ref: '#/components/schemas/PatientShort'
+        arrivedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time

@@ -1,0 +1,183 @@
+openapi: 3.0.3
+info:
+  title: Medical Order Service - ms-business
+  version: '1.0.0'
+  description: API documentation for Medical Orders (laboratory, radiology)
+servers:
+  - url: http://localhost:3002
+tags:
+  - name: MedicalOrders
+    description: Crear y consultar órdenes médicas
+paths:
+  /api/medical-orders/laboratory:
+    post:
+      tags: [MedicalOrders]
+      summary: Crear orden de laboratorio
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LaboratoryOrderCreate'
+      responses:
+        '201':
+          description: Orden creada
+  /api/medical-orders/radiology:
+    post:
+      tags: [MedicalOrders]
+      summary: Crear orden de radiología
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RadiologyOrderCreate'
+      responses:
+        '201':
+          description: Orden creada
+
+  /api/medical-orders/{id}:
+    get:
+      tags: [MedicalOrders]
+      summary: Obtener orden médica por id
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Orden encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiOrderResponse'
+        '404':
+          description: No encontrada
+
+  /api/medical-orders/patient/{patientId}:
+    get:
+      tags: [MedicalOrders]
+      summary: Obtener órdenes de un paciente (paginadas)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista paginada de órdenes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MedicalOrder'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RequestedTest:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        details:
+          type: string
+
+    LaboratoryOrderCreate:
+      type: object
+      required: [patientId, requestedTests]
+      properties:
+        patientId:
+          type: integer
+        requestedBy:
+          type: integer
+        priority:
+          type: string
+          enum: [routine, urgent, stat]
+        clinicalNotes:
+          type: string
+        requestedTests:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestedTest'
+        requestedAt:
+          type: string
+          format: date-time
+
+    RadiologyOrderCreate:
+      type: object
+      required: [patientId, requestedTests]
+      properties:
+        patientId:
+          type: integer
+        requestedBy:
+          type: integer
+        priority:
+          type: string
+        clinicalNotes:
+          type: string
+        requestedTests:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestedTest'
+
+    MedicalOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+        patientId:
+          type: integer
+        requestedBy:
+          type: integer
+        priority:
+          type: string
+        requestedTests:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestedTest'
+        clinicalNotes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ApiOrderResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/MedicalOrder'
