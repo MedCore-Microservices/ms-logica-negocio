@@ -1,69 +1,61 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Clean single migration script
+const { PrismaClient: PrismaClient2 } = require('@prisma/client');
+const prisma2 = new PrismaClient2();
 
-async function run() {
-  console.log('Iniciando migración de medicalOrders desde medicalRecord.medicalOrders -> MedicalOrder (tabla)');
+async function migrate() {
+  console.log('Starting migration: JSON orders -> MedicalOrder table');
 
-  const records = await prisma.medicalRecord.findMany();
-  let created = 0;
-  let skipped = 0;
+  const records = await prisma2.medicalRecord.findMany({ where: {}, select: { id: true, medicalOrders: true } });
 
   for (const rec of records) {
     let orders = rec.medicalOrders;
     if (!orders) continue;
-
     if (typeof orders === 'string') {
-      try {
-        orders = JSON.parse(orders);
-      } catch (e) {
-        orders = [orders];
-      }
+      try { orders = JSON.parse(orders); } catch (e) { orders = [orders]; }
     }
-
     if (!Array.isArray(orders)) orders = [orders];
 
-    for (const o of orders) {
-      if (!o || !o.id) {
-        console.warn(`Orden inválida en record ${rec.id}:`, o);
-        continue;
-      }
+    let updated = false;
 
-      // Comprobar si ya existe en la tabla
-      const exists = await prisma.medicalOrder.findUnique({ where: { id: String(o.id) } });
-      if (exists) {
-        skipped++;
-        continue;
-      }
+    for (let i = 0; i < orders.length; i++) {
+      const o = orders[i];
+      if (!o || !o.id) continue;
+
+      const idNum = Number(o.id);
+      if (!Number.isNaN(idNum)) continue; // already numeric
 
       try {
-        await prisma.medicalOrder.create({
+        const created = await prisma2.medicalOrder.create({
           data: {
-            id: String(o.id),
-            type: o.type || 'unknown',
-            patientId: Number(o.patientId || rec.userId),
+            type: o.type || 'laboratory',
+            patientId: Number(o.patientId) || null,
             requestedBy: o.requestedBy || null,
             priority: o.priority || 'routine',
             clinicalNotes: o.clinicalNotes || null,
-            tests: o.tests || (o.tests ? o.tests : []),
+            tests: o.tests || [],
             status: o.status || 'CREATED',
             requestedAt: o.requestedAt ? new Date(o.requestedAt) : new Date(),
             medicalRecordId: rec.id
           }
         });
-        created++;
+
+        orders[i].id = created.id;
+        updated = true;
+        console.log(`Migrated ${o.id} -> ${created.id} (record ${rec.id})`);
       } catch (e) {
-        console.error('Error creando MedicalOrder', o.id, e.message);
+        console.error('Failed to create MedicalOrder for', o.id, e.message);
       }
+    }
+
+    if (updated) {
+      await prisma2.medicalRecord.update({ where: { id: rec.id }, data: { medicalOrders: orders } });
+      console.log(`Updated medicalRecord ${rec.id}`);
     }
   }
 
-  console.log(`Migración finalizada. Creadas: ${created}, Saltadas (existían): ${skipped}`);
+  console.log('Done');
 }
 
-run()
-  .catch((e) => {
-    console.error('Error durante migración:', e);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+migrate()
+  .catch(e => { console.error(e); process.exit(1); })
+  .finally(() => prisma2.$disconnect());

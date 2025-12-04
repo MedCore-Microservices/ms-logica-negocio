@@ -125,8 +125,28 @@ async function createLaboratoryOrder(payload = {}, ctx = {}) {
     data: { medicalOrders: updatedOrders }
   });
 
-  // Intentar persistir también en la tabla `MedicalOrder` (si existe)
-  await persistOrderToTable(newOrder, medRecord.id);
+  // Intentar persistir también en la tabla `MedicalOrder` (si existe).
+  // Si se persiste, actualizamos el id del order en el JSON de la historia clínica
+  try {
+    const created = await persistOrderToTable(newOrder, medRecord.id);
+    if (created && created.id) {
+      // Reemplazar el id temporal (string) por el id numérico generado
+      const refreshed = await prisma.medicalRecord.findUnique({ where: { id: medRecord.id } });
+      let ordersInRecord = refreshed.medicalOrders || [];
+      if (typeof ordersInRecord === 'string') {
+        try { ordersInRecord = JSON.parse(ordersInRecord); } catch (e) { ordersInRecord = [ordersInRecord]; }
+      }
+      if (!Array.isArray(ordersInRecord)) ordersInRecord = [ordersInRecord];
+
+      const updated = ordersInRecord.map(o => (o.id === newOrder.id ? { ...o, id: created.id } : o));
+
+      await prisma.medicalRecord.update({ where: { id: medRecord.id }, data: { medicalOrders: updated } });
+      // update the returned newOrder id to numeric for the response
+      newOrder.id = created.id;
+    }
+  } catch (e) {
+    console.warn('[createLaboratoryOrder] could not persist to MedicalOrder table:', e.message);
+  }
 
   return newOrder;
 }
@@ -252,8 +272,24 @@ async function createRadiologyOrder(payload = {}, ctx = {}) {
     data: { medicalOrders: updatedOrders }
   });
 
-  // Intentar persistir también en la tabla `MedicalOrder` (si existe)
-  await persistOrderToTable(newOrder, medRecord.id);
+  try {
+    const created = await persistOrderToTable(newOrder, medRecord.id);
+    if (created && created.id) {
+      const refreshed = await prisma.medicalRecord.findUnique({ where: { id: medRecord.id } });
+      let ordersInRecord = refreshed.medicalOrders || [];
+      if (typeof ordersInRecord === 'string') {
+        try { ordersInRecord = JSON.parse(ordersInRecord); } catch (e) { ordersInRecord = [ordersInRecord]; }
+      }
+      if (!Array.isArray(ordersInRecord)) ordersInRecord = [ordersInRecord];
+
+      const updated = ordersInRecord.map(o => (o.id === newOrder.id ? { ...o, id: created.id } : o));
+
+      await prisma.medicalRecord.update({ where: { id: medRecord.id }, data: { medicalOrders: updated } });
+      newOrder.id = created.id;
+    }
+  } catch (e) {
+    console.warn('[createRadiologyOrder] could not persist to MedicalOrder table:', e.message);
+  }
 
   return newOrder;
 }
@@ -266,9 +302,13 @@ async function getOrderById(orderId) {
   }
   // Intentar primero buscar en la nueva tabla `MedicalOrder` si existe
   try {
-    const dbOrder = await prisma.medicalOrder.findUnique({ where: { id: String(orderId) } });
-    if (dbOrder) {
-      return { order: dbOrder, medicalRecordId: dbOrder.medicalRecordId, patientId: dbOrder.patientId };
+    // Si el orderId es numérico, buscar por id numérico
+    const idNum = Number(orderId);
+    if (!Number.isNaN(idNum)) {
+      const dbOrder = await prisma.medicalOrder.findUnique({ where: { id: idNum } });
+      if (dbOrder) {
+        return { order: dbOrder, medicalRecordId: dbOrder.medicalRecordId, patientId: dbOrder.patientId };
+      }
     }
   } catch (e) {
     // Si la tabla no existe aún (antes de migrar), continuamos con búsqueda en JSON
@@ -307,9 +347,8 @@ async function getOrderById(orderId) {
 async function persistOrderToTable(newOrder, medRecordId) {
   try {
     // Crear registro en la tabla `MedicalOrder` (si existe)
-    await prisma.medicalOrder.create({
+    const created = await prisma.medicalOrder.create({
       data: {
-        id: String(newOrder.id),
         type: newOrder.type,
         patientId: Number(newOrder.patientId),
         requestedBy: newOrder.requestedBy || null,
@@ -321,6 +360,7 @@ async function persistOrderToTable(newOrder, medRecordId) {
         medicalRecordId: medRecordId || null
       }
     });
+    return created;
   } catch (e) {
     // Si la tabla no existe aún o hay error, ignoramos para mantener compatibilidad
     console.warn('[persistOrderToTable] could not persist order:', e.message);

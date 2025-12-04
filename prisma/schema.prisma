@@ -268,7 +268,7 @@ model Prescription {
 // Nuevo modelo para órdenes médicas. Usamos `id` como string para mantener compatibilidad
 // con los identificadores actuales (p.ej. "labord-...", "radord-...").
 model MedicalOrder {
-  id              String   @id
+  id              Int      @id @default(autoincrement())
   type            String
   patientId       Int
   patient         User     @relation("MedicalOrderPatient", fields: [patientId], references: [id], onDelete: Cascade)
